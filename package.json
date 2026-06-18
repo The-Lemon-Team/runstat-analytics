@@ -1,0 +1,16 @@
+{
+  "name": "sport-publications-tracker",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "dev:api": "pnpm --filter @spt/api dev",
+    "dev:web": "pnpm --filter @spt/web dev",
+    "build": "pnpm -r build",
+    "db:generate": "pnpm --filter @spt/api prisma:generate",
+    "db:migrate": "pnpm --filter @spt/api prisma:migrate",
+    "db:studio": "pnpm --filter @spt/api prisma:studio"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
