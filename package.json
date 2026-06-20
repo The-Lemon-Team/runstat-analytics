@@ -1,6 +1,7 @@
 {
   "name": "sport-publications-tracker",
   "private": true,
+  "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev": "pnpm --parallel -r dev",
     "dev:api": "pnpm --filter @spt/api dev",

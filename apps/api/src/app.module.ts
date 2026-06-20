@@ -11,6 +11,7 @@ import { YouTubeModule } from './youtube/youtube.module'
 import { InstagramModule } from './instagram/instagram.module'
 import { SubscribersModule } from './subscribers/subscribers.module'
 import { PublicationsModule } from './publications/publications.module'
+import { HealthController } from './health/health.controller'
 
 @Module({
   imports: [
@@ -26,5 +27,6 @@ import { PublicationsModule } from './publications/publications.module'
     SubscribersModule,
     PublicationsModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

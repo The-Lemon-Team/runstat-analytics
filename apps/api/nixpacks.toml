@@ -1,0 +1,21 @@
+# Fallback when Railway "Root Directory" is apps/api — build from monorepo root.
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = [
+  "npm install -g corepack",
+  "corepack enable",
+  "corepack prepare pnpm@9.15.4 --activate",
+  "cd ../.. && pnpm install --frozen-lockfile",
+]
+
+[phases.build]
+cmds = [
+  "cd ../.. && pnpm --filter @spt/api prisma:generate",
+  "cd ../.. && pnpm --filter @spt/api... build",
+  "test -f dist/apps/api/src/subscribers/subscribers.controller.js",
+]
+
+[start]
+cmd = "cd ../.. && pnpm --filter @spt/api start"
