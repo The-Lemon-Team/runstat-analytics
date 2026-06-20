@@ -1,0 +1,154 @@
+name: Notify Telegram on Deploy
+
+# Fires when Vercel (web) and Railway (api) report deployment status to GitHub.
+# Sends one Telegram message after both environments succeed for the same commit on main.
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+concurrency:
+  group: deploy-notify-${{ github.event.deployment.sha }}
+  cancel-in-progress: false
+
+env:
+  APP_URL: https://sport-publications-tracker-web.vercel.app/
+  # Match names in GitHub → Environments / Deployments (adjust if your setup differs).
+  WEB_ENVIRONMENT: Production
+  API_ENVIRONMENT: production
+
+jobs:
+  notify:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check web and API deployments succeeded
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.deployment.sha }}
+          REF: ${{ github.event.deployment.ref }}
+          WEB_ENV: ${{ env.WEB_ENVIRONMENT }}
+          API_ENV: ${{ env.API_ENVIRONMENT }}
+        run: |
+          python3 << 'PYEOF'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+
+          def gh_api(path: str):
+              req = urllib.request.Request(
+                  f"https://api.github.com{path}",
+                  headers={
+                      "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  details = error.read().decode("utf-8", errors="replace")
+                  raise SystemExit(f"GitHub API error: {details}") from error
+
+          sha = os.environ["SHA"]
+          ref = os.environ["REF"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          required = {os.environ["WEB_ENV"], os.environ["API_ENV"]}
+
+          if ref not in {"main", "refs/heads/main"}:
+              print(f"Skip: ref is {ref!r}, not main.")
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+                  out.write("ready=false\n")
+              sys.exit(0)
+
+          deployments = gh_api(f"/repos/{repo}/deployments?sha={sha}&per_page=100")
+          ready: set[str] = set()
+
+          for deployment in deployments:
+              environment = deployment.get("environment") or ""
+              if environment not in required:
+                  continue
+
+              statuses = gh_api(
+                  f"/repos/{repo}/deployments/{deployment['id']}/statuses?per_page=1"
+              )
+              if statuses and statuses[0].get("state") == "success":
+                  ready.add(environment)
+
+          missing = required - ready
+          if missing:
+              print(f"Waiting for deployments: {', '.join(sorted(missing))}")
+              ready_flag = "false"
+          else:
+              print("Web and API deployments are both successful.")
+              ready_flag = "true"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"ready={ready_flag}\n")
+              out.write(f"short_sha={sha[:7]}\n")
+          PYEOF
+
+      - name: Send deploy notification to Telegram
+        if: steps.check.outputs.ready == 'true'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          APP_URL: ${{ env.APP_URL }}
+          SHORT_SHA: ${{ steps.check.outputs.short_sha }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID secrets must be configured."
+            exit 1
+          fi
+
+          python3 << 'PYEOF'
+          import html
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          app_url = html.escape(os.environ["APP_URL"])
+          short_sha = html.escape(os.environ["SHORT_SHA"])
+          repo = html.escape(os.environ["GITHUB_REPOSITORY"])
+
+          text = (
+              "✅ <b>Деплой завершён</b>\n\n"
+              f"Web и API успешно задеплоены (<code>{short_sha}</code>).\n\n"
+              f'<a href="{app_url}">Открыть приложение</a>'
+          )
+
+          payload = json.dumps(
+              {
+                  "chat_id": os.environ["CHAT_ID"],
+                  "text": text,
+                  "parse_mode": "HTML",
+                  "disable_web_page_preview": False,
+              }
+          ).encode("utf-8")
+
+          req = urllib.request.Request(
+              f"https://api.telegram.org/bot{os.environ['BOT_TOKEN']}/sendMessage",
+              data=payload,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+
+          try:
+              with urllib.request.urlopen(req) as response:
+                  result = json.load(response)
+          except urllib.error.HTTPError as error:
+              details = error.read().decode("utf-8", errors="replace")
+              raise SystemExit(f"Telegram API error: {details}") from error
+
+          if not result.get("ok"):
+              raise SystemExit(f"Telegram API returned error: {result}")
+
+          print("Sent deploy notification to Telegram.")
+          PYEOF

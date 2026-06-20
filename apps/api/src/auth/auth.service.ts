@@ -7,13 +7,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { JwtService } from '@nestjs/jwt'
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
 import type { AuthTokensDto, UserDto } from '@spt/shared'
 import { PrismaService } from '../prisma/prisma.service'
 import type { RegisterDto, UpdateProfileDto } from './dto/auth.dto'
 
-interface JwtPayload {
+interface AccessTokenPayload {
   sub: string
   email: string
 }
@@ -172,10 +172,13 @@ export class AuthService {
     email: string,
     name: string | null,
   ): Promise<AuthTokensDto> {
-    const payload: JwtPayload = { sub: userId, email }
+    const payload: AccessTokenPayload = { sub: userId, email }
     const accessToken = await this.jwt.signAsync(payload, {
       secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
-      expiresIn: this.config.get<string>('JWT_ACCESS_EXPIRES_IN', '1h'),
+      expiresIn: this.config.get(
+        'JWT_ACCESS_EXPIRES_IN',
+        '1h',
+      ) as JwtSignOptions['expiresIn'],
     })
 
     const refreshToken = await this.jwt.signAsync(payload, {

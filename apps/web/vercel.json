@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://sport-publications-tracker-production.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
