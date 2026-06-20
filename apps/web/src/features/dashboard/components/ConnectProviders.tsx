@@ -1,5 +1,5 @@
 import { Check, PlugZap, ShieldCheck } from 'lucide-react'
-import { CONNECTABLE_PROVIDERS, providerOf } from '@/lib/provider-connections'
+import { OAUTH_CONNECTABLE_PROVIDERS, providerOf } from '@/lib/provider-connections'
 import { formatNumber } from '@/lib/dashboard-utils'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -7,10 +7,14 @@ import { ProviderBadge } from './ProviderBadge'
 
 export function ConnectProviders({
   connected,
+  connectingId,
+  error,
   onConnect,
   onConnectAll,
 }: {
   connected: string[]
+  connectingId: string | null
+  error?: string | null
   onConnect: (id: string) => void
   onConnectAll: () => void
 }) {
@@ -26,16 +30,21 @@ export function ConnectProviders({
             Подключите соцсети, чтобы видеть статистику
           </h2>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground md:text-base">
-            Пока не подключена ни одна площадка. Авторизуйтесь в VK, YouTube и
-            Instagram — и мы начнём собирать метрики публикаций и считать
-            подписчиков в реальном времени.
+            Подключите VK, чтобы видеть число подписчиков в реальном времени.
+            YouTube-видео добавляются по ссылке — авторизация Google не нужна.
           </p>
+          {error ? (
+            <p className="max-w-xl rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
         </div>
 
-        <div className="grid w-full gap-3 sm:grid-cols-3">
-          {CONNECTABLE_PROVIDERS.map((cp) => {
+        <div className="grid w-full max-w-xl gap-3 sm:grid-cols-2">
+          {OAUTH_CONNECTABLE_PROVIDERS.map((cp) => {
             const provider = providerOf(cp.id)
             const isConnected = connected.includes(cp.id)
+            const isConnecting = connectingId === cp.id
             return (
               <div
                 key={cp.id}
@@ -53,10 +62,12 @@ export function ConnectProviders({
                   size="sm"
                   variant={isConnected ? 'secondary' : 'outline'}
                   className="w-full"
-                  disabled={isConnected}
+                  disabled={isConnected || Boolean(connectingId)}
                   onClick={() => onConnect(cp.id)}
                 >
-                  {isConnected ? (
+                  {isConnecting ? (
+                    'Открываем…'
+                  ) : isConnected ? (
                     <>
                       <Check className="size-4" />
                       Подключено
@@ -76,7 +87,7 @@ export function ConnectProviders({
         </div>
 
         <div className="flex flex-col items-center gap-3">
-          <Button size="lg" onClick={onConnectAll}>
+          <Button size="lg" onClick={onConnectAll} disabled={Boolean(connectingId)}>
             <PlugZap className="size-4" />
             Подключить все площадки
           </Button>

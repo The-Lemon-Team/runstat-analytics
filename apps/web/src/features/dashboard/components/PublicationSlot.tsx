@@ -29,8 +29,10 @@ function StatusDot({ status }: { status: PublicationView['status'] }) {
 
 export function PublicationSlot({
   publication,
+  compact = false,
 }: {
   publication: PublicationView
+  compact?: boolean
 }) {
   const provider = getProviderUi(publication.providerId)
   const isMissing = publication.status === 'missing'
@@ -38,15 +40,19 @@ export function PublicationSlot({
   return (
     <div
       className={cn(
-        'group/slot relative flex flex-col gap-2 rounded-xl border bg-card p-3 transition-colors',
+        'group/slot relative flex flex-col border bg-card transition-colors',
+        compact ? 'gap-1.5 rounded-lg p-2' : 'gap-2 rounded-xl p-3',
         isMissing
           ? 'border-dashed border-border bg-muted/30'
           : 'border-border hover:border-primary/40 hover:bg-accent/40',
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <ProviderBadge providerId={publication.providerId} size="sm" />
+      <div className="flex items-start justify-between gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <ProviderBadge
+            providerId={publication.providerId}
+            size={compact ? 'xs' : 'sm'}
+          />
           <div className="min-w-0">
             <p className="truncate text-xs font-medium leading-tight">
               {publication.label}

@@ -23,6 +23,16 @@ export function formatNumber(value: number): string {
   return value.toLocaleString('ru-RU')
 }
 
+export function formatSubscriberDate(iso: string): string {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso))
+}
+
 export function sumMetrics(
   a: DashboardMetrics,
   b: DashboardMetrics,
@@ -69,6 +79,7 @@ export interface TopicView {
   name: string
   translation: string
   category: string
+  createdAt: string
   stages: StageView[]
 }
 
@@ -100,6 +111,7 @@ export function toTopicViews(topics: TopicDto[]): TopicView[] {
     name: topic.name,
     translation: '',
     category: 'Контент',
+    createdAt: topic.createdAt,
     stages: topic.stages.map((stage) => ({
       id: stage.id,
       name: stage.name,

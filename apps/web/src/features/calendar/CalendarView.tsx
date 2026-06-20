@@ -1,6 +1,16 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import type { TopicDto } from '@spt/shared'
+import { CompactCalendarGrid } from '@/features/calendar/components/CompactCalendarGrid'
+import {
+  EMPTY_DATE_RANGE,
+  formatDateRangeLabel,
+  isAfterCurrentMonth,
+  isDateInRange,
+  MONTH_LABELS,
+  startOfMonth,
+  type DateRangeValue,
+} from '@/features/calendar/lib/calendar-utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -41,31 +51,6 @@ function flattenPublications(topics: TopicDto[]): CalendarPublication[] {
   return items.sort((a, b) => a.date.getTime() - b.date.getTime())
 }
 
-const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-
-const MONTHS = [
-  'Январь',
-  'Февраль',
-  'Март',
-  'Апрель',
-  'Май',
-  'Июнь',
-  'Июль',
-  'Август',
-  'Сентябрь',
-  'Октябрь',
-  'Ноябрь',
-  'Декабрь',
-]
-
-function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
-}
-
 function PublicationCard({ pub }: { pub: CalendarPublication }) {
   return (
     <div className="rounded-lg border border-border bg-card p-2.5 text-left">
@@ -102,179 +87,141 @@ function PublicationCard({ pub }: { pub: CalendarPublication }) {
 
 export function CalendarView({ topics }: { topics: TopicDto[] }) {
   const publications = useMemo(() => flattenPublications(topics), [topics])
-  const [cursor, setCursor] = useState(() => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  })
-  const [selected, setSelected] = useState<Date | null>(null)
+  const [cursor, setCursor] = useState(() => startOfMonth(new Date()))
+  const [dateRange, setDateRange] = useState<DateRangeValue>(EMPTY_DATE_RANGE)
 
   const year = cursor.getFullYear()
   const month = cursor.getMonth()
+  const canGoNext = !isAfterCurrentMonth(new Date(year, month + 1, 1))
 
-  const grid = useMemo(() => {
-    const firstDay = new Date(year, month, 1)
-    const startOffset = (firstDay.getDay() + 6) % 7
-    const daysInMonth = new Date(year, month + 1, 0).getDate()
-    const cells: (Date | null)[] = []
-
-    for (let i = 0; i < startOffset; i++) cells.push(null)
-    for (let d = 1; d <= daysInMonth; d++) {
-      cells.push(new Date(year, month, d))
+  const filteredPublications = useMemo(() => {
+    if (!dateRange.enabled || !dateRange.from || !dateRange.to) {
+      return publications
     }
 
-    return cells
-  }, [year, month])
-
-  const pubsByDay = useMemo(() => {
-    const map = new Map<string, CalendarPublication[]>()
-    for (const pub of publications) {
-      const key = `${pub.date.getFullYear()}-${pub.date.getMonth()}-${pub.date.getDate()}`
-      const list = map.get(key) ?? []
-      list.push(pub)
-      map.set(key, list)
-    }
-    return map
-  }, [publications])
-
-  const selectedPubs = useMemo(() => {
-    if (!selected) return []
-    const key = `${selected.getFullYear()}-${selected.getMonth()}-${selected.getDate()}`
-    return pubsByDay.get(key) ?? []
-  }, [selected, pubsByDay])
-
-  const today = new Date()
+    return publications.filter((pub) =>
+      isDateInRange(pub.date, dateRange.from, dateRange.to),
+    )
+  }, [publications, dateRange])
 
   function prevMonth() {
     setCursor(new Date(year, month - 1, 1))
-    setSelected(null)
   }
 
   function nextMonth() {
+    if (!canGoNext) return
     setCursor(new Date(year, month + 1, 1))
-    setSelected(null)
   }
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6">
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <section className="flex-1 rounded-2xl border border-border bg-card p-4 md:p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">
-              {MONTHS[month]} {year}
-            </h2>
-            <div className="flex gap-1">
-              <Button variant="outline" size="icon-sm" onClick={prevMonth}>
-                <ChevronLeft className="size-4" />
-              </Button>
-              <Button variant="outline" size="icon-sm" onClick={nextMonth}>
-                <ChevronRight className="size-4" />
-              </Button>
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+        <section className="w-full max-w-xs rounded-2xl border border-border bg-card p-3 md:p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold">Календарь</h2>
+              <p className="text-[11px] text-muted-foreground">
+                {dateRange.enabled
+                  ? formatDateRangeLabel(dateRange)
+                  : 'Выберите период'}
+              </p>
             </div>
+            <Button
+              type="button"
+              size="sm"
+              variant={!dateRange.enabled ? 'secondary' : 'outline'}
+              onClick={() => setDateRange(EMPTY_DATE_RANGE)}
+            >
+              Все
+            </Button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
-            {WEEKDAYS.map((d) => (
-              <div key={d} className="py-2">
-                {d}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-1">
-            {grid.map((day, i) => {
-              if (!day) {
-                return <div key={`empty-${i}`} className="aspect-square" />
-              }
-
-              const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`
-              const count = pubsByDay.get(key)?.length ?? 0
-              const isToday = sameDay(day, today)
-              const isSelected = selected ? sameDay(day, selected) : false
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setSelected(day)}
-                  className={cn(
-                    'flex aspect-square flex-col items-center justify-center rounded-lg text-sm transition-colors',
-                    isSelected
-                      ? 'bg-primary text-primary-foreground'
-                      : isToday
-                        ? 'bg-accent text-accent-foreground'
-                        : 'hover:bg-muted',
-                  )}
-                >
-                  <span>{day.getDate()}</span>
-                  {count > 0 ? (
-                    <span
-                      className={cn(
-                        'mt-0.5 size-1.5 rounded-full',
-                        isSelected ? 'bg-primary-foreground' : 'bg-primary',
-                      )}
-                    />
-                  ) : null}
-                </button>
-              )
-            })}
-          </div>
+          <CompactCalendarGrid
+            cursor={cursor}
+            onCursorChange={setCursor}
+            range={dateRange}
+            onRangeChange={setDateRange}
+          />
         </section>
 
-        <aside className="w-full space-y-4 lg:w-80">
+        <aside className="min-w-0 flex-1 space-y-4">
           <div className="rounded-2xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold">
-              {selected
-                ? selected.toLocaleDateString('ru-RU', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })
-                : 'Выберите день'}
+              {dateRange.enabled && dateRange.from && dateRange.to
+                ? `Публикации: ${formatDateRangeLabel(dateRange)}`
+                : 'Все публикации'}
             </h3>
-            {selected ? (
-              selectedPubs.length > 0 ? (
-                <div className="mt-3 flex flex-col gap-2">
-                  {selectedPubs.map((pub) => (
-                    <PublicationCard key={pub.id} pub={pub} />
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Нет публикаций в этот день
-                </p>
-              )
+            {filteredPublications.length > 0 ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredPublications.map((pub) => (
+                  <PublicationCard key={pub.id} pub={pub} />
+                ))}
+              </div>
             ) : (
               <p className="mt-2 text-sm text-muted-foreground">
-                Нажмите на день в календаре, чтобы увидеть публикации
+                {dateRange.enabled
+                  ? 'Нет публикаций в выбранном периоде'
+                  : 'Нет публикаций'}
               </p>
             )}
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold">Все публикации</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {publications.length}{' '}
-              {publications.length === 1
-                ? 'публикация'
-                : publications.length < 5
-                  ? 'публикации'
-                  : 'публикаций'}
-            </p>
-            <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto">
-              {publications.map((pub) => (
-                <li
-                  key={pub.id}
-                  className="flex items-center justify-between gap-2 text-xs"
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">
+                {MONTH_LABELS[month]} {year}
+              </h3>
+              <div className="flex gap-0.5">
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  className="size-7"
+                  onClick={prevMonth}
                 >
-                  <span className="truncate text-muted-foreground">
-                    {pub.date.toLocaleDateString('ru-RU', {
-                      day: '2-digit',
-                      month: 'short',
-                    })}
-                  </span>
-                  <span className="truncate font-medium">{pub.label}</span>
-                </li>
-              ))}
+                  <ChevronLeft className="size-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  className="size-7"
+                  onClick={nextMonth}
+                  disabled={!canGoNext}
+                >
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <ul className="max-h-56 space-y-2 overflow-y-auto">
+              {publications
+                .filter(
+                  (pub) =>
+                    pub.date.getFullYear() === year &&
+                    pub.date.getMonth() === month,
+                )
+                .map((pub) => {
+                  const inSelectedRange =
+                    dateRange.enabled &&
+                    isDateInRange(pub.date, dateRange.from, dateRange.to)
+
+                  return (
+                    <li
+                      key={pub.id}
+                      className={cn(
+                        'flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs',
+                        inSelectedRange && 'bg-primary/10',
+                      )}
+                    >
+                      <span className="shrink-0 text-muted-foreground">
+                        {pub.date.toLocaleDateString('ru-RU', {
+                          day: '2-digit',
+                          month: 'short',
+                        })}
+                      </span>
+                      <span className="truncate font-medium">{pub.label}</span>
+                    </li>
+                  )
+                })}
             </ul>
           </div>
         </aside>

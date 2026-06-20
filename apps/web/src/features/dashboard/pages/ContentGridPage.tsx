@@ -10,19 +10,28 @@ import {
   ThumbsUp,
   TrendingUp,
 } from 'lucide-react'
-import { useGetOAuthConnectionsQuery, useGetTopicsQuery } from '@/app/api/baseApi'
-import { UnderDevelopment } from '@/components/UnderDevelopment'
 import { ContentMetricsTable } from '@/features/content-table/components/ContentMetricsTable'
-import { DEMO_TOPICS } from '@/features/content-table/lib/demo-data'
-import { CalendarView } from '@/features/calendar/CalendarView'
+import { useDashboardShell } from '@/features/dashboard/DashboardShellContext'
+import { useDashboardTopicsContext } from '@/features/dashboard/DashboardTopicsProvider'
+import { TopicSection } from '@/features/dashboard/components/TopicSection'
+import { WeeklyPublicationsPanel } from '@/features/dashboard/components/WeeklyPublicationsPanel'
+import {
+  AddPublicationDialog,
+  type NewPublicationInput,
+  type StageOption,
+} from '@/features/dashboard/components/AddPublicationDialog'
+import { LiveSubscribers } from '@/features/dashboard/components/LiveSubscribers'
 import {
   DASHBOARD_NAV,
   PAGE_TITLES,
-  UNDER_DEVELOPMENT_PAGES,
-  type DashboardNavItem,
 } from '@/features/dashboard/lib/nav'
-import { SettingsView } from '@/features/settings/SettingsView'
-import { CONNECTABLE_PROVIDERS } from '@/lib/provider-connections'
+import { AddTopicDialog } from '@/features/topics/components/AddTopicDialog'
+import { TopicsSection } from '@/features/topics/components/TopicsSection'
+import {
+  filterTopics,
+  formatTopicsFilterPeriod,
+} from '@/features/topics/lib/topic-filters'
+import { EMPTY_DATE_RANGE } from '@/features/calendar/lib/calendar-utils'
 import {
   aggregateAll,
   formatNumber,
@@ -31,15 +40,6 @@ import {
 } from '@/lib/dashboard-utils'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { DashboardSidebar } from './components/DashboardSidebar'
-import { TopicSection } from './components/TopicSection'
-import { ConnectProviders } from './components/ConnectProviders'
-import { LiveSubscribers } from './components/LiveSubscribers'
-import {
-  AddPublicationDialog,
-  type NewPublicationInput,
-  type StageOption,
-} from './components/AddPublicationDialog'
 
 function GlobalStat({
   label,
@@ -63,30 +63,33 @@ function GlobalStat({
   )
 }
 
-function ContentGridView({
-  topics,
-  sourceTopics,
-  connected,
-  onConnect,
-}: {
-  topics: TopicView[]
-  sourceTopics: typeof DEMO_TOPICS
-  connected: string[]
-  onConnect: (id: string) => void
-}) {
+export function ContentGridPage() {
+  const {
+    subscriberSources,
+    weeklyPublications,
+    connectingId,
+    onConnectOAuth,
+    onYouTubeChannelAdded,
+  } = useDashboardShell()
+  const { sourceTopics, handleCreateTopic, isCreatingTopic } =
+    useDashboardTopicsContext()
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [query, setQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [topicDialogOpen, setTopicDialogOpen] = useState(false)
   const [defaultStageKey, setDefaultStageKey] = useState<string | undefined>()
-  const [localTopics, setLocalTopics] = useState(topics)
+  const [topics, setTopics] = useState<TopicView[]>(() =>
+    toTopicViews(sourceTopics),
+  )
+  const [dateRange, setDateRange] = useState(EMPTY_DATE_RANGE)
 
   useEffect(() => {
-    setLocalTopics(topics)
-  }, [topics])
+    setTopics(toTopicViews(sourceTopics))
+  }, [sourceTopics])
 
   const totals = aggregateAll(sourceTopics)
 
-  const stageOptions: StageOption[] = localTopics.flatMap((topic) =>
+  const stageOptions: StageOption[] = topics.flatMap((topic) =>
     topic.stages.map((stage) => ({
       topicId: topic.id,
       topicName: topic.name,
@@ -95,14 +98,14 @@ function ContentGridView({
     })),
   )
 
-  const filteredTopics = localTopics.filter((topic) => {
-    if (!query.trim()) return true
-    const q = query.toLowerCase()
-    return (
-      topic.name.toLowerCase().includes(q) ||
-      topic.category.toLowerCase().includes(q)
+  const filteredTopics = useMemo(() => {
+    const matchedIds = new Set(
+      filterTopics(sourceTopics, { query, dateRange }).map((topic) => topic.id),
     )
-  })
+    return topics.filter((topic) => matchedIds.has(topic.id))
+  }, [topics, sourceTopics, query, dateRange])
+
+  const periodLabel = formatTopicsFilterPeriod(dateRange)
 
   function openDialogForStage(topicId: string, stageId: string) {
     setDefaultStageKey(`${topicId}::${stageId}`)
@@ -115,7 +118,7 @@ function ContentGridView({
   }
 
   function handleAddPublication(topicId: string, input: NewPublicationInput) {
-    setLocalTopics((prev) =>
+    setTopics((prev) =>
       prev.map((topic) => {
         if (topic.id !== topicId) return topic
         return {
@@ -133,7 +136,11 @@ function ContentGridView({
                   stageId: input.stageId,
                   url: input.url,
                   status: input.status,
-                  metrics: { views: 0, likes: 0, comments: 0 },
+                  metrics: input.metrics ?? {
+                    views: 0,
+                    likes: 0,
+                    comments: 0,
+                  },
                 },
               ],
             }
@@ -190,7 +197,12 @@ function ContentGridView({
       </header>
 
       <main className="flex flex-1 flex-col gap-6 px-4 py-6 md:px-6">
-        <LiveSubscribers connected={connected} onConnect={onConnect} />
+        <LiveSubscribers
+          sources={subscriberSources}
+          connectingId={connectingId}
+          onConnectOAuth={onConnectOAuth}
+          onYouTubeChannelAdded={onYouTubeChannelAdded}
+        />
 
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <GlobalStat
@@ -210,31 +222,48 @@ function ContentGridView({
           />
           <GlobalStat
             label="Active Topics"
-            value={String(localTopics.length)}
+            value={String(topics.length)}
             icon={TrendingUp}
           />
         </section>
 
-        <section className="flex flex-col gap-5">
-          {filteredTopics.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-              Ничего не найдено по запросу «{query}»
-            </div>
-          ) : view === 'table' ? (
+        <WeeklyPublicationsPanel publications={weeklyPublications} />
+
+        {view === 'table' ? (
+          <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
             <ContentMetricsTable
               topics={sourceTopics}
               onAddPublication={openDialogForStage}
             />
-          ) : (
-            filteredTopics.map((topic) => (
+          </section>
+        ) : (
+          <TopicsSection
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            onClearDateRange={() => setDateRange(EMPTY_DATE_RANGE)}
+            onAddTopic={() => setTopicDialogOpen(true)}
+            empty={
+              filteredTopics.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                  {topics.length === 0
+                    ? 'Пока нет тем. Нажмите «Новая тема», чтобы добавить первую.'
+                    : dateRange.enabled
+                      ? `Нет тем за ${periodLabel}${query ? ` по запросу «${query}»` : ''}`
+                      : `Ничего не найдено по запросу «${query}»`}
+                </div>
+              ) : undefined
+            }
+          >
+            {filteredTopics.map((topic) => (
               <TopicSection
                 key={topic.id}
                 topic={topic}
+                nested
                 onAddPublication={openDialogForStage}
               />
-            ))
-          )}
-        </section>
+            ))}
+          </TopicsSection>
+        )}
       </main>
 
       <AddPublicationDialog
@@ -244,124 +273,13 @@ function ContentGridView({
         defaultStageKey={defaultStageKey}
         onSubmit={handleAddPublication}
       />
+
+      <AddTopicDialog
+        open={topicDialogOpen}
+        onOpenChange={setTopicDialogOpen}
+        onSubmit={handleCreateTopic}
+        isSubmitting={isCreatingTopic}
+      />
     </>
-  )
-}
-
-export function ContentDashboard() {
-  const { data: apiTopics, isError: topicsError } = useGetTopicsQuery()
-  const { data: oauthConnections } = useGetOAuthConnectionsQuery()
-  const [activeNav, setActiveNav] = useState<DashboardNavItem>(
-    DASHBOARD_NAV.content,
-  )
-
-  const sourceTopics = useMemo(
-    () => (topicsError || !apiTopics?.length ? DEMO_TOPICS : apiTopics),
-    [apiTopics, topicsError],
-  )
-
-  const [topics, setTopics] = useState<TopicView[]>(() =>
-    toTopicViews(sourceTopics),
-  )
-
-  useEffect(() => {
-    setTopics(toTopicViews(sourceTopics))
-  }, [sourceTopics])
-
-  const oauthConnected = useMemo(() => {
-    if (!oauthConnections?.length) return []
-    const map: Record<string, string> = {
-      VK: 'vk',
-      GOOGLE: 'youtube',
-      FACEBOOK: 'instagram',
-    }
-    return oauthConnections
-      .filter((c) => c.status === 'ACTIVE')
-      .map((c) => map[c.provider])
-      .filter(Boolean)
-  }, [oauthConnections])
-
-  const [localConnected, setLocalConnected] = useState<string[]>([])
-  const connected = oauthConnected.length > 0 ? oauthConnected : localConnected
-
-  const hasConnections = connected.length > 0
-  const pageMeta = PAGE_TITLES[activeNav]
-  const isContentGrid = activeNav === DASHBOARD_NAV.content
-  const isUnderDevelopment = UNDER_DEVELOPMENT_PAGES.includes(activeNav)
-  const showConnectGate = isContentGrid && !hasConnections
-
-  function connectProvider(id: string) {
-    const token = localStorage.getItem('accessToken')
-    if (token) {
-      window.location.href = `/api/oauth/start/${id}`
-      return
-    }
-    setLocalConnected((prev) => (prev.includes(id) ? prev : [...prev, id]))
-  }
-
-  function connectAll() {
-    for (const cp of CONNECTABLE_PROVIDERS) {
-      if (!connected.includes(cp.id)) connectProvider(cp.id)
-    }
-  }
-
-  function renderMain() {
-    if (showConnectGate) {
-      return (
-        <ConnectProviders
-          connected={connected}
-          onConnect={connectProvider}
-          onConnectAll={connectAll}
-        />
-      )
-    }
-
-    if (isContentGrid) {
-      return (
-        <ContentGridView
-          topics={topics}
-          sourceTopics={sourceTopics}
-          connected={connected}
-          onConnect={connectProvider}
-        />
-      )
-    }
-
-    if (activeNav === DASHBOARD_NAV.calendar) {
-      return <CalendarView topics={sourceTopics} />
-    }
-
-    if (activeNav === DASHBOARD_NAV.settings) {
-      return <SettingsView />
-    }
-
-    if (isUnderDevelopment) {
-      return <UnderDevelopment title={activeNav} />
-    }
-
-    return null
-  }
-
-  return (
-    <div className="flex min-h-svh bg-background">
-      <DashboardSidebar active={activeNav} onNavigate={setActiveNav} />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        {!isContentGrid || hasConnections ? (
-          !isContentGrid ? (
-            <header className="sticky top-0 z-20 border-b border-border bg-background/80 px-4 py-4 backdrop-blur-xl md:px-6">
-              <h1 className="text-xl font-semibold tracking-tight">
-                {pageMeta.title}
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {pageMeta.subtitle}
-              </p>
-            </header>
-          ) : null
-        ) : null}
-
-        {renderMain()}
-      </div>
-    </div>
   )
 }

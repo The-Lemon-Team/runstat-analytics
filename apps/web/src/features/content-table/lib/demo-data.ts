@@ -19,12 +19,28 @@ const m = (
   capturedAt: new Date().toISOString(),
 })
 
+const atPublish = (
+  views: number,
+  likes: number,
+  comments: number,
+  capturedAt: string,
+  shares = 0,
+) => ({
+  kind: MetricSnapshotKind.AT_PUBLISH,
+  views,
+  likes,
+  comments,
+  shares,
+  capturedAt,
+})
+
 /** Demo data mirroring Excel structure: Topic → Stage → Publication */
 export const DEMO_TOPICS: TopicDto[] = [
   {
     id: 'topic-sleep',
     name: 'Сон',
     order: 0,
+    createdAt: '2026-01-13T00:00:00.000Z',
     stages: [
       {
         id: 'stage-anons',
@@ -50,9 +66,12 @@ export const DEMO_TOPICS: TopicDto[] = [
             label: 'VK S10 пост',
             postUrl: 'https://vk.com/s10',
             status: PublicationStatus.PUBLISHED,
-            publishedAt: '2026-01-13T00:00:00.000Z',
+            publishedAt: '2026-06-18T14:00:00.000Z',
             order: 1,
-            snapshots: [m(8657, 214, 9)],
+            snapshots: [
+              atPublish(7200, 142, 4, '2026-06-18T14:00:00.000Z'),
+              m(8657, 214, 9),
+            ],
           },
           {
             id: 'pub-3',
@@ -61,9 +80,12 @@ export const DEMO_TOPICS: TopicDto[] = [
             label: 'VK Юрий (пост)',
             postUrl: 'https://vk.com/yuri',
             status: PublicationStatus.PUBLISHED,
-            publishedAt: '2026-01-13T00:00:00.000Z',
+            publishedAt: '2026-06-17T11:30:00.000Z',
             order: 2,
-            snapshots: [m(12294, 162, 25)],
+            snapshots: [
+              atPublish(10800, 98, 12, '2026-06-17T11:30:00.000Z'),
+              m(12294, 162, 25),
+            ],
           },
         ],
       },
@@ -80,9 +102,12 @@ export const DEMO_TOPICS: TopicDto[] = [
             label: 'YouTube S10',
             postUrl: 'https://youtube.com/watch?v=abc',
             status: PublicationStatus.PUBLISHED,
-            publishedAt: '2026-01-19T00:00:00.000Z',
+            publishedAt: '2026-06-15T18:00:00.000Z',
             order: 0,
-            snapshots: [m(2617, 135, 0)],
+            snapshots: [
+              atPublish(1800, 72, 0, '2026-06-15T18:00:00.000Z'),
+              m(2617, 135, 0),
+            ],
           },
         ],
       },
@@ -111,6 +136,7 @@ export const DEMO_TOPICS: TopicDto[] = [
     id: 'topic-womens-running',
     name: 'Женский бег 1 часть',
     order: 1,
+    createdAt: '2026-06-14T20:00:00.000Z',
     stages: [
       {
         id: 'stage-anons-2',
@@ -125,7 +151,7 @@ export const DEMO_TOPICS: TopicDto[] = [
             label: 'ТГ S10',
             postUrl: 'https://t.me/s10/201',
             status: PublicationStatus.PUBLISHED,
-            publishedAt: '2026-01-25T00:00:00.000Z',
+            publishedAt: '2026-06-19T09:00:00.000Z',
             order: 0,
             snapshots: [m(48, 0, 0)],
           },
@@ -144,9 +170,12 @@ export const DEMO_TOPICS: TopicDto[] = [
             label: 'YouTube S10',
             postUrl: 'https://youtube.com/watch?v=run',
             status: PublicationStatus.PUBLISHED,
-            publishedAt: '2026-01-26T00:00:00.000Z',
+            publishedAt: '2026-06-14T20:00:00.000Z',
             order: 0,
-            snapshots: [m(1152, 160, 6)],
+            snapshots: [
+              atPublish(640, 88, 2, '2026-06-14T20:00:00.000Z'),
+              m(1152, 160, 6),
+            ],
           },
         ],
       },

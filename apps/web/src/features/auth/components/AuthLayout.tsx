@@ -1,6 +1,6 @@
 import { useEffect, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BarChart3 } from 'lucide-react'
+import { BrandMark, BrandTextLogo } from '@/components/BrandMark'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,17 +24,11 @@ export function AuthLayout({
   return (
     <div className="flex min-h-svh">
       <div className="hidden w-1/2 flex-col justify-between bg-sidebar p-10 text-sidebar-foreground lg:flex">
-        <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
-            <BarChart3 className="size-5" />
-          </span>
-          <div>
-            <p className="font-semibold">Studio S10</p>
-            <p className="text-sm text-sidebar-foreground/70">
-              Sports Content Metrics
-            </p>
-          </div>
-        </div>
+        <BrandMark
+          logoClassName="size-12 text-[1.75rem]"
+          nameClassName="text-base"
+          taglineClassName="text-sm text-sidebar-foreground/70"
+        />
         <div className="max-w-md">
           <h1 className="text-3xl font-semibold tracking-tight">
             Трекинг публикаций по темам, этапам и площадкам
@@ -44,7 +38,7 @@ export function AuthLayout({
             одном дашборде.
           </p>
         </div>
-        <p className="text-xs text-sidebar-foreground/50">Studio S10</p>
+        <BrandTextLogo />
       </div>
 
       <div className="flex flex-1 items-center justify-center p-6">
@@ -105,7 +99,7 @@ export function AuthForm({
           type="email"
           autoComplete="email"
           required
-          placeholder="you@studio.s10"
+          placeholder="you@runstat.io"
         />
       </div>
 

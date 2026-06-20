@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, Plus, Users } from 'lucide-react'
-import { CONNECTABLE_PROVIDERS, providerOf } from '@/lib/provider-connections'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, Plus, Users } from 'lucide-react'
+import {
+  SUBSCRIBABLE_SOURCE_TYPES,
+  type LiveSubscriberSource,
+  providerOf,
+} from '@/lib/provider-connections'
 import { formatNumber } from '@/lib/dashboard-utils'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ProviderBadge } from './ProviderBadge'
+import { AddSubscriberSourceDialog } from './AddSubscriberSourceDialog'
+import { SubscriberDeltaBadge } from './SubscriberDeltaBadge'
+import { SubscriberHistoryModal } from './SubscriberHistoryModal'
 
 type LiveState = Record<string, { count: number; delta: number }>
 
@@ -12,140 +19,316 @@ function randInt([min, max]: [number, number]) {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-export function LiveSubscribers({
-  connected,
-  onConnect,
+function AddSubscriberButton({
+  availableTypes,
+  connectingId,
+  onConnectOAuth,
+  onAddChannel,
+  align = 'right',
 }: {
-  connected: string[]
-  onConnect: (id: string) => void
+  availableTypes: typeof SUBSCRIBABLE_SOURCE_TYPES
+  connectingId: string | null
+  onConnectOAuth: (id: string) => void
+  onAddChannel: (providerId: string) => void
+  align?: 'left' | 'center' | 'right'
 }) {
-  const connectedSet = useMemo(
-    () => CONNECTABLE_PROVIDERS.filter((p) => connected.includes(p.id)),
-    [connected],
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handlePointerDown(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [open])
+
+  if (availableTypes.length === 0) return null
+
+  const menuPositionClass =
+    align === 'center'
+      ? 'left-1/2 -translate-x-1/2'
+      : align === 'left'
+        ? 'left-0'
+        : 'right-0'
+
+  return (
+    <div ref={ref} className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="gap-2 pl-2"
+        disabled={Boolean(connectingId)}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className="flex items-center">
+          <span className="flex -space-x-1.5">
+            {SUBSCRIBABLE_SOURCE_TYPES.map((source) => (
+              <ProviderBadge
+                key={source.id}
+                providerId={source.id}
+                size="sm"
+                className="ring-2 ring-white dark:ring-card"
+              />
+            ))}
+          </span>
+          <span className="ml-1 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Plus className="size-3" />
+          </span>
+        </span>
+        <span>Добавить</span>
+        <ChevronDown
+          className={cn(
+            'size-3.5 opacity-60 transition-transform',
+            open && 'rotate-180',
+          )}
+        />
+      </Button>
+
+      {open ? (
+        <div
+          className={cn(
+            'absolute top-full z-20 mt-1.5 w-60 overflow-hidden rounded-xl border border-border bg-white shadow-lg dark:bg-card',
+            menuPositionClass,
+          )}
+        >
+          <p className="border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
+            Подключить площадку
+          </p>
+          <ul className="p-1">
+            {availableTypes.map((source) => {
+              const isConnecting = connectingId === source.id
+              return (
+                <li key={source.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent"
+                    disabled={Boolean(connectingId)}
+                    onClick={() => {
+                      setOpen(false)
+                      if (source.kind === 'oauth') {
+                        onConnectOAuth(source.id)
+                      } else {
+                        onAddChannel(source.id)
+                      }
+                    }}
+                  >
+                    <ProviderBadge providerId={source.id} size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium">
+                        {source.addLabel}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {isConnecting ? 'Открываем…' : source.addDescription}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   )
-  const pending = CONNECTABLE_PROVIDERS.filter(
-    (p) => !connected.includes(p.id),
+}
+
+export function LiveSubscribers({
+  sources,
+  connectingId,
+  onConnectOAuth,
+  onYouTubeChannelAdded,
+}: {
+  sources: LiveSubscriberSource[]
+  connectingId: string | null
+  onConnectOAuth: (id: string) => void
+  onYouTubeChannelAdded: () => void
+}) {
+  const [dialogProviderId, setDialogProviderId] = useState<string | null>(null)
+  const [historySource, setHistorySource] = useState<LiveSubscriberSource | null>(
+    null,
+  )
+  const [live, setLive] = useState<LiveState>({})
+
+  const mockSources = useMemo(
+    () => sources.filter((source) => !source.sourceId),
+    [sources],
   )
 
-  const [live, setLive] = useState<LiveState>({})
+  const sourceKeys = useMemo(
+    () => sources.map((s) => s.key).join(','),
+    [sources],
+  )
 
   useEffect(() => {
     setLive((prev) => {
       const next: LiveState = {}
-      for (const cp of connectedSet) {
-        next[cp.id] = prev[cp.id] ?? { count: cp.baseSubscribers, delta: 0 }
+      for (const source of mockSources) {
+        next[source.key] =
+          prev[source.key] ?? { count: source.baseSubscribers, delta: 0 }
       }
       return next
     })
-  }, [connectedSet])
+  }, [sourceKeys, mockSources])
 
   useEffect(() => {
-    if (connectedSet.length === 0) return
+    if (mockSources.length === 0) return
     const interval = setInterval(() => {
       setLive((prev) => {
         const next: LiveState = { ...prev }
-        for (const cp of connectedSet) {
-          const current = next[cp.id]?.count ?? cp.baseSubscribers
-          const delta = randInt(cp.drift)
-          next[cp.id] = { count: current + delta, delta }
+        for (const source of mockSources) {
+          const current = next[source.key]?.count ?? source.baseSubscribers
+          const delta = randInt(source.drift)
+          next[source.key] = { count: current + delta, delta }
         }
         return next
       })
     }, 2500)
     return () => clearInterval(interval)
-  }, [connectedSet])
+  }, [mockSources])
 
-  if (connectedSet.length === 0) return null
-
-  const totalSubscribers = connectedSet.reduce(
-    (sum, cp) => sum + (live[cp.id]?.count ?? cp.baseSubscribers),
-    0,
+  const connectedProviderIds = useMemo(
+    () => new Set(sources.map((s) => s.providerId)),
+    [sources],
   )
 
+  const availableTypes = SUBSCRIBABLE_SOURCE_TYPES.filter((source) => {
+    if (source.kind === 'channel-url') return true
+    return !connectedProviderIds.has(source.id)
+  })
+
+  const totalSubscribers = sources.reduce((sum, source) => {
+    if (source.sourceId) {
+      return sum + source.baseSubscribers
+    }
+    return sum + (live[source.key]?.count ?? source.baseSubscribers)
+  }, 0)
+
+  const hasSources = sources.length > 0
+
   return (
-    <section className="rounded-2xl border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="relative flex size-2.5">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" />
-            <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
-          </span>
-          <h2 className="text-sm font-semibold tracking-tight">
-            Подписчики в реальном времени
-          </h2>
-        </div>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Users className="size-4" />
-          <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
-            {formatNumber(totalSubscribers)}
-          </span>
-          <span className="hidden text-xs sm:inline">всего</span>
-        </div>
-      </div>
-
-      <div className="grid gap-px overflow-hidden bg-border sm:grid-cols-3">
-        {connectedSet.map((cp) => {
-          const provider = providerOf(cp.id)
-          const state = live[cp.id]
-          const count = state?.count ?? cp.baseSubscribers
-          const delta = state?.delta ?? 0
-          const positive = delta >= 0
-          return (
-            <div
-              key={cp.id}
-              className="flex items-center gap-3 bg-card px-4 py-3.5"
-            >
-              <ProviderBadge providerId={cp.id} />
-              <div className="min-w-0 flex-1 leading-tight">
-                <p className="truncate text-xs text-muted-foreground">
-                  {provider.name}
-                </p>
-                <p className="font-mono text-lg font-semibold tabular-nums tracking-tight">
-                  {formatNumber(count)}
-                </p>
-              </div>
-              <span
-                className={cn(
-                  'flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums',
-                  positive
-                    ? 'bg-success/10 text-success'
-                    : 'bg-destructive/10 text-destructive',
-                )}
-              >
-                {positive ? (
-                  <ArrowUp className="size-3" />
-                ) : (
-                  <ArrowDown className="size-3" />
-                )}
-                {positive ? '+' : ''}
-                {delta}
+    <>
+      <section className="relative z-10 rounded-2xl border border-border bg-white dark:bg-card">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            {hasSources ? (
+              <span className="relative flex size-2.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" />
+                <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
               </span>
-            </div>
-          )
-        })}
+            ) : null}
+            <h2 className="text-sm font-semibold tracking-tight">
+              Подписчики в реальном времени
+            </h2>
+          </div>
 
-        {pending.map((cp) => {
-          const provider = providerOf(cp.id)
-          return (
-            <div
-              key={cp.id}
-              className="flex items-center gap-3 bg-card px-4 py-3.5"
-            >
-              <ProviderBadge providerId={cp.id} className="opacity-40" />
-              <div className="min-w-0 flex-1 leading-tight">
-                <p className="truncate text-xs text-muted-foreground">
-                  {provider.name}
-                </p>
-                <p className="text-sm text-muted-foreground">Не подключено</p>
+          <div className="flex items-center gap-3">
+            {hasSources ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Users className="size-4" />
+                <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                  {formatNumber(totalSubscribers)}
+                </span>
+                <span className="hidden text-xs sm:inline">всего</span>
               </div>
-              <Button size="sm" variant="outline" onClick={() => onConnect(cp.id)}>
-                <Plus className="size-4" />
-                Подключить
-              </Button>
-            </div>
-          )
-        })}
-      </div>
-    </section>
+            ) : null}
+            {hasSources ? (
+              <AddSubscriberButton
+                availableTypes={availableTypes}
+                connectingId={connectingId}
+                onConnectOAuth={onConnectOAuth}
+                onAddChannel={setDialogProviderId}
+              />
+            ) : null}
+          </div>
+        </div>
+
+        {hasSources ? (
+          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sources.map((source) => {
+              const provider = providerOf(source.providerId)
+              const isTracked = Boolean(source.sourceId)
+              const count = isTracked
+                ? source.baseSubscribers
+                : (live[source.key]?.count ?? source.baseSubscribers)
+              const delta = isTracked
+                ? (source.sessionDelta ?? 0)
+                : (live[source.key]?.delta ?? 0)
+
+              return (
+                <div
+                  key={source.key}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3.5 dark:bg-card"
+                >
+                  <ProviderBadge providerId={source.providerId} />
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="truncate text-xs text-muted-foreground">
+                      {provider.name}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground/80">
+                      {source.handle}
+                    </p>
+                    <p className="font-mono text-lg font-semibold tabular-nums tracking-tight">
+                      {formatNumber(count)}
+                    </p>
+                  </div>
+                  {isTracked ? (
+                    <SubscriberDeltaBadge
+                      delta={delta}
+                      lastChangedAt={source.lastChangedAt ?? null}
+                      lastChange={source.lastChange ?? null}
+                      onClick={() => setHistorySource(source)}
+                    />
+                  ) : (
+                    <SubscriberDeltaBadge
+                      delta={delta}
+                      lastChangedAt={null}
+                      lastChange={null}
+                    />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
+            <p className="max-w-md text-sm text-muted-foreground">
+              Подключите группу VK, аккаунт Instagram или добавьте канал YouTube,
+              чтобы видеть подписчиков в реальном времени.
+            </p>
+            <AddSubscriberButton
+              availableTypes={availableTypes}
+              connectingId={connectingId}
+              onConnectOAuth={onConnectOAuth}
+              onAddChannel={setDialogProviderId}
+              align="center"
+            />
+          </div>
+        )}
+      </section>
+
+      <AddSubscriberSourceDialog
+        open={dialogProviderId === 'youtube'}
+        providerId="youtube"
+        onOpenChange={(open) => {
+          if (!open) setDialogProviderId(null)
+        }}
+        onAdded={onYouTubeChannelAdded}
+      />
+
+      <SubscriberHistoryModal
+        open={Boolean(historySource)}
+        onOpenChange={(open) => {
+          if (!open) setHistorySource(null)
+        }}
+        sourceId={historySource?.sourceId ?? null}
+        providerId={historySource?.providerId ?? 'youtube'}
+        handle={historySource?.handle ?? ''}
+      />
+    </>
   )
 }

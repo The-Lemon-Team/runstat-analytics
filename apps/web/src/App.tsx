@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ProtectedRoute, GuestRoute } from '@/features/auth/components/ProtectedRoute'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { OAuthCallbackPage } from '@/features/auth/pages/OAuthCallbackPage'
 import { RegisterPage } from '@/features/auth/pages/RegisterPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 
@@ -13,8 +14,10 @@ export function App() {
           <Route path="/register" element={<RegisterPage />} />
         </Route>
 
+        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/*" element={<DashboardPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

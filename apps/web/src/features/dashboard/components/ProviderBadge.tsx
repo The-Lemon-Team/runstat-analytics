@@ -7,7 +7,7 @@ export function ProviderBadge({
   className,
 }: {
   providerId: string
-  size?: 'sm' | 'default'
+  size?: 'xs' | 'sm' | 'default'
   className?: string
 }) {
   const provider = getProviderUi(providerId)
@@ -15,7 +15,9 @@ export function ProviderBadge({
     <span
       className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-md font-mono font-semibold tracking-tight',
-        size === 'sm' ? 'size-6 text-[10px]' : 'size-8 text-xs',
+        size === 'xs' && 'size-5 text-[8px]',
+        size === 'sm' && 'size-6 text-[10px]',
+        size === 'default' && 'size-8 text-xs',
         className,
       )}
       style={{ backgroundColor: provider.color, color: provider.textColor }}

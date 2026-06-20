@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Plus } from 'lucide-react'
+import { Loader2, Plus } from 'lucide-react'
+import { useLazyGetYouTubeMetricsQuery } from '@/app/api/baseApi'
 import { PROVIDER_UI } from '@/lib/providers'
 import type { PublicationViewStatus } from '@/lib/dashboard-utils'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,7 @@ export interface NewPublicationInput {
   stageId: string
   url: string
   status: PublicationViewStatus
+  metrics?: { views: number; likes: number; comments: number }
 }
 
 export interface StageOption {
@@ -47,6 +49,8 @@ export function AddPublicationDialog({
   const [label, setLabel] = useState('')
   const [stageKey, setStageKey] = useState(defaultStageKey ?? '')
   const [url, setUrl] = useState('')
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [fetchYouTubeMetrics, { isFetching }] = useLazyGetYouTubeMetricsQuery()
 
   useEffect(() => {
     if (open) {
@@ -57,6 +61,7 @@ export function AddPublicationDialog({
       setLabel('')
       setStageKey(defaultStageKey ?? firstKey)
       setUrl('')
+      setFetchError(null)
     }
   }, [open, defaultStageKey, stageOptions])
 
@@ -64,16 +69,43 @@ export function AddPublicationDialog({
     (s) => `${s.topicId}::${s.stageId}` === stageKey,
   )
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!selectedStage) return
+
+    const trimmedUrl = url.trim()
     const provider = PROVIDER_UI.find((p) => p.id === providerId)
+    let metrics: NewPublicationInput['metrics']
+    let resolvedLabel = label.trim() || provider?.name || providerId
+
+    setFetchError(null)
+
+    if (providerId === 'youtube' && trimmedUrl) {
+      try {
+        const data = await fetchYouTubeMetrics(trimmedUrl).unwrap()
+        metrics = {
+          views: data.views,
+          likes: data.likes,
+          comments: data.comments,
+        }
+        if (!label.trim() && data.title) {
+          resolvedLabel = data.title
+        }
+      } catch {
+        setFetchError(
+          'Не удалось загрузить статистику YouTube. Проверьте ссылку и YOUTUBE_API_KEY на сервере.',
+        )
+        return
+      }
+    }
+
     onSubmit(selectedStage.topicId, {
       providerId,
-      label: label.trim() || provider?.name || providerId,
+      label: resolvedLabel,
       stageId: selectedStage.stageId,
-      url: url.trim(),
-      status: url.trim() ? 'published' : 'scheduled',
+      url: trimmedUrl,
+      status: trimmedUrl ? 'published' : 'scheduled',
+      metrics,
     })
     onOpenChange(false)
   }
@@ -148,21 +180,34 @@ export function AddPublicationDialog({
               placeholder="https://"
             />
             <p className="text-xs text-muted-foreground">
-              Оставьте пустым, чтобы создать запланированный слот.
+              {providerId === 'youtube'
+                ? 'Для YouTube достаточно ссылки — статистика подтянется автоматически.'
+                : 'Оставьте пустым, чтобы создать запланированный слот.'}
             </p>
           </div>
+
+          {fetchError ? (
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {fetchError}
+            </p>
+          ) : null}
 
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
+              disabled={isFetching}
             >
               Отмена
             </Button>
-            <Button type="submit" disabled={!selectedStage}>
-              <Plus className="size-4" />
-              Add Publication
+            <Button type="submit" disabled={!selectedStage || isFetching}>
+              {isFetching ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Plus className="size-4" />
+              )}
+              {isFetching ? 'Загружаем…' : 'Add Publication'}
             </Button>
           </DialogFooter>
         </form>
