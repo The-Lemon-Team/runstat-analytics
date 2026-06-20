@@ -24,7 +24,7 @@ kanban-plugin: basic
 
 ### Прочее
 
-- [ ] **Календарь** — расширить страницу: фильтры по темам/площадкам, drag-and-drop планирование, синхронизация с API
+- [ ] **Календарь** — drag-and-drop планирование, фильтры по площадкам, синхронизация с API
 - [ ] Seed тем из Excel (Сон, Женский бег, Силовые…)
 - [ ] CRUD публикаций через API
 - [ ] Cron обновления MetricSnapshot (LIVE) — после OAuth
@@ -49,6 +49,10 @@ kanban-plugin: basic
 
 - [x] Монорепо: apps/api, apps/web, packages/shared
 - [x] Прототип v0 в `v0_prototype/`
+- [x] **Темы** — страница `/topics`, карточка-секция на контент-сетке, `POST /topics`, список публикаций
+- [x] **Календарь (фильтр)** — компактный date range, блокировка будущих месяцев и дат
+- [x] Dashboard routing по URL (`/`, `/topics`, `/calendar`, `/settings`)
+- [x] Подписчики YouTube/VK — трекинг, история, синхронизация API
 
 %% kanban:settings
 {"kanban-plugin":"basic","list-collapse":[false,false,false,false]}
