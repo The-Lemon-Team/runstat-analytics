@@ -1,6 +1,6 @@
 # API service — Root Directory in Railway dashboard must be / (repo root).
 [build]
-buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @spt/api prisma:generate && pnpm --filter @spt/api build"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @spt/api prisma:generate && pnpm --filter @spt/api... build"
 watchPatterns = [
   "apps/api/**",
   "packages/shared/**",
