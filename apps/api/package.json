@@ -6,8 +6,11 @@
     "dev": "tsx watch --require reflect-metadata src/main.ts",
     "build": "nest build",
     "start": "node dist/apps/api/src/main.js",
+    "start:prod": "node scripts/migrate-and-start.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:prod": "node scripts/baseline-and-migrate.mjs",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
@@ -29,6 +32,7 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "reflect-metadata": "^0.2.2",
+    "prisma": "^6.3.0",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
@@ -40,7 +44,6 @@
     "@types/passport-facebook": "^3.0.3",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
-    "prisma": "^6.3.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }

@@ -12,7 +12,7 @@ watchPatterns = [
 ]
 
 [deploy]
-# Production image has no pnpm — override any legacy Nixpacks/dashboard start command.
-startCommand = "node dist/apps/api/src/main.js"
+# Run pending Prisma migrations, then start the API.
+startCommand = "node scripts/migrate-and-start.mjs"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

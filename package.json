@@ -9,6 +9,8 @@
     "build": "pnpm -r build",
     "db:generate": "pnpm --filter @spt/api prisma:generate",
     "db:migrate": "pnpm --filter @spt/api prisma:migrate",
+    "db:migrate:deploy": "pnpm --filter @spt/api prisma:migrate:deploy",
+    "db:migrate:prod": "pnpm --filter @spt/api prisma:migrate:prod",
     "db:studio": "pnpm --filter @spt/api prisma:studio",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down"

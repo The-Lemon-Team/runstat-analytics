@@ -26,6 +26,7 @@ RUN pnpm --filter @spt/api... build
 RUN pnpm --filter @spt/api --prod deploy /prod/api
 # deploy creates fresh node_modules — regenerate client into the production bundle
 COPY apps/api/prisma /prod/api/prisma
+COPY apps/api/scripts /prod/api/scripts
 RUN pnpm --filter @spt/api exec prisma generate --schema=/prod/api/prisma/schema.prisma
 
 FROM node:20-bookworm-slim AS production
@@ -40,4 +41,4 @@ COPY --from=build /prod/api ./
 
 ENV NODE_ENV=production
 
-CMD ["node", "dist/apps/api/src/main.js"]
+CMD ["node", "scripts/migrate-and-start.mjs"]
