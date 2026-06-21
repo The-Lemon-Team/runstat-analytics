@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.turbo
+coverage
+*.log
+.env
+.env.*
+!.env.example
+
+# Frontend and prototypes are not needed for the API image
+apps/web
+v0_prototype
