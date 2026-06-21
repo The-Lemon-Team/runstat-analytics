@@ -82,9 +82,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token')
     }
 
-    await this.prisma.withFreshConnection((db) =>
-      db.refreshToken.delete({ where: { id: stored.id } }),
+    const deleted = await this.prisma.withFreshConnection((db) =>
+      db.refreshToken.deleteMany({
+        where: { id: stored.id, tokenHash },
+      }),
     )
+    if (deleted.count === 0) {
+      throw new UnauthorizedException('Invalid refresh token')
+    }
+
     return this.issueTokens(
       stored.user.id,
       stored.user.email,
