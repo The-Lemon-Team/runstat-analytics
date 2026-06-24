@@ -5,6 +5,7 @@ import {
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -13,6 +14,7 @@ import type {
   CreateSubscriberSourceRequest,
   SubscriberHistoryPageDto,
   SubscriberSourceDto,
+  UpdateManualSubscriberCountRequest,
 } from '@spt/shared'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import {
@@ -38,7 +40,7 @@ export class SubscribersController {
     @CurrentUser() user: RequestUser,
     @Body() body: CreateSubscriberSourceRequest,
   ): Promise<SubscriberSourceDto> {
-    return this.subscribers.createSource(user.id, body.input)
+    return this.subscribers.createSource(user.id, body)
   }
 
   @Delete('sources/:id')
@@ -54,12 +56,24 @@ export class SubscribersController {
     return this.subscribers.syncForUser(user.id)
   }
 
+  @Patch('sources/:id/count')
+  updateManualCount(
+    @CurrentUser() user: RequestUser,
+    @Param('id') sourceId: string,
+    @Body() body: UpdateManualSubscriberCountRequest,
+  ): Promise<SubscriberSourceDto> {
+    return this.subscribers.updateManualCount(user.id, sourceId, body.count)
+  }
+
   @Get('sources/:id/history')
   getHistory(
     @CurrentUser() user: RequestUser,
     @Param('id') sourceId: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    @Query('filter') filter?: string,
+    @Query('publicationId') publicationId?: string,
+    @Query('since') since?: string,
   ): Promise<SubscriberHistoryPageDto> {
     const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined
     return this.subscribers.getHistory(
@@ -67,6 +81,9 @@ export class SubscribersController {
       sourceId,
       cursor,
       Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      filter,
+      publicationId,
+      since,
     )
   }
 }
