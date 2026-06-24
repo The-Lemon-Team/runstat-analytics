@@ -61,12 +61,24 @@ enum OAuthConnectionStatus {
   REVOKED
 }
 
+/** How subscriber counts are maintained for a tracked source */
+enum SubscriberTrackingMode {
+  AUTOMATIC // polled from platform API
+  MANUAL    // user-maintained counts
+}
+
+/** Origin of a subscriber snapshot row */
+enum SubscriberCaptureSource {
+  SYNC   // automatic fetch (API poll)
+  MANUAL // user-entered value
+}
+
 // ─── Auth & OAuth ────────────────────────────────────────────────────────────
 
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  passwordHash String?
   name         String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -159,16 +171,20 @@ model Publication {
   status              PublicationStatus   @default(PLANNED)
   publishedAt         DateTime?
   metricTrackingMode  MetricTrackingMode  @default(AUTOMATIC)
+  subscriberSourceId  String?
   order               Int                 @default(0)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
-  stage          Stage                @relation(fields: [stageId], references: [id], onDelete: Cascade)
-  snapshots      MetricSnapshot[]
-  metricHistory  MetricHistoryEntry[]
+  stage               Stage                           @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  subscriberSource    SubscriberSource?               @relation(fields: [subscriberSourceId], references: [id], onDelete: SetNull)
+  snapshots           MetricSnapshot[]
+  metricHistory       MetricHistoryEntry[]
+  channelAttachments  PublicationChannelAttachment[]
 
   @@index([stageId, order])
   @@index([stageId, provider])
+  @@index([subscriberSourceId])
   @@map("publications")
 }
 
@@ -213,35 +229,54 @@ model MetricHistoryEntry {
 // SubscriberSnapshot rows are written only when the count changes.
 
 model SubscriberSource {
-  id                String    @id @default(cuid())
+  id                String                 @id @default(cuid())
   userId            String
   provider          Provider
   externalId        String
   handle            String?
   title             String?
   pollInput         String
+  profileUrl        String?
+  trackingMode      SubscriberTrackingMode @default(AUTOMATIC)
   subscriberCount   Int?
   lastChangedAt     DateTime?
   lastCheckedAt     DateTime?
-  oauthConnectionId String?   @unique
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  oauthConnectionId String?                @unique
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
-  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  oauthConnection OAuthConnection?     @relation(fields: [oauthConnectionId], references: [id], onDelete: SetNull)
+  user            User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oauthConnection OAuthConnection?               @relation(fields: [oauthConnectionId], references: [id], onDelete: SetNull)
   snapshots       SubscriberSnapshot[]
+  publications    Publication[]
+  channelAttachments PublicationChannelAttachment[]
 
   @@unique([userId, provider, externalId])
   @@index([userId])
   @@map("subscriber_sources")
 }
 
+model PublicationChannelAttachment {
+  id                 String   @id @default(cuid())
+  publicationId      String
+  subscriberSourceId String
+  attachedAt         DateTime @default(now())
+
+  publication      Publication      @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  subscriberSource SubscriberSource @relation(fields: [subscriberSourceId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberSourceId, attachedAt(sort: Desc)])
+  @@index([publicationId, attachedAt(sort: Desc)])
+  @@map("publication_channel_attachments")
+}
+
 model SubscriberSnapshot {
-  id         String   @id @default(cuid())
-  sourceId   String
-  count      Int
-  delta      Int
-  capturedAt DateTime @default(now())
+  id            String                  @id @default(cuid())
+  sourceId      String
+  count         Int
+  delta         Int
+  captureSource SubscriberCaptureSource @default(SYNC)
+  capturedAt    DateTime                @default(now())
 
   source SubscriberSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
