@@ -19,6 +19,7 @@ import { CurrentUser, type RequestUser } from '../auth/decorators/current-user.d
 import { InstagramService } from '../instagram/instagram.service'
 import { OAuthProviderGuard } from './guards/oauth-provider.guard'
 import { OAuthService } from './oauth.service'
+// import { VkOAuthService } from './vk-oauth.service'
 import type { OAuthProfile } from './oauth.types'
 
 const FacebookAuthGuard = OAuthProviderGuard('facebook')
@@ -32,6 +33,8 @@ interface OAuthRequest {
 export class OAuthController {
   constructor(
     @Inject(OAuthService) private readonly oauth: OAuthService,
+    // @Inject(VkOAuthService) private readonly vkOAuth: VkOAuthService,
+    // @Inject(AuthService) private readonly auth: AuthService,
     @Inject(forwardRef(() => InstagramService))
     private readonly instagram: InstagramService,
   ) {}
@@ -100,6 +103,110 @@ export class OAuthController {
     await this.handleCallback(req, res)
   }
 
+  // ─── VK (site login + integration) ────────────────────────────────────────
+
+  @Get('vk')
+  vkAuthorize(@Query('state') state: string | undefined, @Res() res: Response): void {
+    if (!state) {
+      res.status(400).json({ message: 'missing_state' })
+      return
+    }
+    if (!process.env.VK_APP_ID || !process.env.VK_APP_SECRET) {
+      res.status(503).json({ message: 'VK OAuth is not configured' })
+      return
+    }
+    res.redirect(this.vkOAuth.buildAuthorizeUrl(state))
+  }
+
+  @Get('vk/callback')
+  async vkCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') stateRaw: string | undefined,
+    @Query('error') error: string | undefined,
+    @Query('error_description') errorDescription: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    if (error || !code || !stateRaw) {
+      const fallback = this.oauth.buildCallbackRedirect(
+        process.env.WEB_URL ?? 'http://localhost:5173',
+        {
+          success: false,
+          error: errorDescription ?? error ?? 'missing_code_or_state',
+        },
+        false,
+        'login',
+      )
+      res.redirect(fallback)
+      return
+    }
+
+    try {
+      const profile = await this.vkOAuth.exchangeCodeForProfile(code)
+      await this.handleVkProfile(stateRaw, profile, res)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'oauth_callback_failed'
+      let returnUrl = process.env.WEB_URL ?? 'http://localhost:5173'
+      let mode: 'login' | 'connect' = 'login'
+      try {
+        const parsed = this.oauth.parseState(stateRaw)
+        returnUrl = parsed.returnUrl
+        mode = parsed.mode
+      } catch {
+        // ignore malformed state
+      }
+
+      if (mode === 'login') {
+        const url = new URL(`${returnUrl}/auth/vk/callback`)
+        url.searchParams.set('oauth', 'error')
+        url.searchParams.set('message', message)
+        res.redirect(url.toString())
+        return
+      }
+
+      res.redirect(
+        this.oauth.buildCallbackRedirect(
+          returnUrl,
+          { success: false, error: message },
+          false,
+          mode,
+        ),
+      )
+    }
+  }
+
+  private async handleVkProfile(
+    stateRaw: string,
+    profile: OAuthProfile,
+    res: Response,
+  ): Promise<void> {
+    const { userId, returnUrl, popup, mode } = this.oauth.parseState(stateRaw)
+
+    if (mode === 'login') {
+      const user = await this.auth.findOrCreateUserFromVk(profile)
+      await this.oauth.upsertConnection(user.id, profile)
+      const tokens = await this.auth.issueTokensForUser(user)
+      res.redirect(this.oauth.buildLoginCallbackRedirect(returnUrl, tokens))
+      return
+    }
+
+    if (!userId) {
+      throw new Error('missing_user_id')
+    }
+
+    await this.oauth.upsertConnection(userId, profile)
+    res.redirect(
+      this.oauth.buildCallbackRedirect(
+        returnUrl,
+        {
+          success: true,
+          provider: profile.provider as OAuthProvider,
+        },
+        popup,
+        mode,
+      ),
+    )
+  }
+
   private async handleCallback(
     req: OAuthRequest,
     res: Response,
@@ -117,8 +224,21 @@ export class OAuthController {
     }
 
     try {
-      const { userId, returnUrl, popup } = this.oauth.parseState(stateRaw)
+      const { userId, returnUrl, popup, mode } = this.oauth.parseState(stateRaw)
       const profile = await this.enrichProfile(profileRaw)
+
+      if (mode === 'login') {
+        const user = await this.auth.findOrCreateUserFromVk(profile)
+        await this.oauth.upsertConnection(user.id, profile)
+        const tokens = await this.auth.issueTokensForUser(user)
+        res.redirect(this.oauth.buildLoginCallbackRedirect(returnUrl, tokens))
+        return
+      }
+
+      if (!userId) {
+        throw new Error('missing_user_id')
+      }
+
       await this.oauth.upsertConnection(userId, profile)
       res.redirect(
         this.oauth.buildCallbackRedirect(
@@ -128,28 +248,48 @@ export class OAuthController {
             provider: profile.provider as OAuthProvider,
           },
           popup,
+          mode,
         ),
       )
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'oauth_callback_failed'
       let popup = false
+      let returnUrl = process.env.WEB_URL ?? 'http://localhost:5173'
+      let mode: 'login' | 'connect' = 'connect'
       try {
-        popup = this.oauth.parseState(stateRaw).popup ?? false
+        const parsed = this.oauth.parseState(stateRaw)
+        popup = parsed.popup ?? false
+        returnUrl = parsed.returnUrl
+        mode = parsed.mode
       } catch {
         // ignore malformed state
       }
+
+      if (mode === 'login') {
+        const url = new URL(`${returnUrl}/auth/vk/callback`)
+        url.searchParams.set('oauth', 'error')
+        url.searchParams.set('message', message)
+        res.redirect(url.toString())
+        return
+      }
+
       res.redirect(
         this.oauth.buildCallbackRedirect(
-          process.env.WEB_URL ?? 'http://localhost:5173',
+          returnUrl,
           { success: false, error: message },
           popup,
+          mode,
         ),
       )
     }
   }
 
   private async enrichProfile(profile: OAuthProfile): Promise<OAuthProfile> {
+    if (profile.provider === OAuthProvider.VK) {
+      return profile
+    }
+
     if (profile.provider !== OAuthProvider.FACEBOOK) {
       return profile
     }

@@ -21,11 +21,12 @@ export class OAuthService {
   ): string {
     const returnUrl = this.config.getOrThrow<string>('WEB_URL')
     const state = Buffer.from(
-      JSON.stringify({ userId, returnUrl, popup }),
+      JSON.stringify({ mode: 'connect', userId, returnUrl, popup }),
     ).toString('base64url')
 
     const routes: Partial<Record<OAuthProvider, string>> = {
       [OAuthProvider.FACEBOOK]: '/api/oauth/facebook',
+      [OAuthProvider.VK]: '/api/oauth/vk',
     }
 
     const route = routes[provider]
@@ -35,6 +36,18 @@ export class OAuthService {
 
     const apiUrl = this.config.getOrThrow<string>('API_URL')
     return `${apiUrl}${route}?state=${state}`
+  }
+
+  buildVkLoginUrl(returnUrl?: string): string {
+    const webUrl = this.config.getOrThrow<string>('WEB_URL')
+    const state = Buffer.from(
+      JSON.stringify({
+        mode: 'login',
+        returnUrl: returnUrl ?? webUrl,
+      }),
+    ).toString('base64url')
+    const apiUrl = this.config.getOrThrow<string>('API_URL')
+    return `${apiUrl}/oauth/vk?state=${state}`
   }
 
   async upsertConnection(
@@ -127,19 +140,49 @@ export class OAuthService {
     return this.getDecryptedAccessToken(connection)
   }
 
+  async requireVkAccessToken(userId: string): Promise<string> {
+    const connection = await this.prisma.oAuthConnection.findFirst({
+      where: {
+        userId,
+        provider: OAuthProvider.VK,
+        status: OAuthConnectionStatus.ACTIVE,
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    if (!connection) {
+      throw new UnauthorizedException(
+        'VK is not connected. Sign in with VK or connect in Settings.',
+      )
+    }
+
+    return this.getDecryptedAccessToken(connection)
+  }
+
   parseState(state: string): OAuthStatePayload {
     const decoded = JSON.parse(
       Buffer.from(state, 'base64url').toString('utf8'),
-    ) as OAuthStatePayload
-    return decoded
+    ) as Partial<OAuthStatePayload> & { userId?: string; returnUrl?: string }
+    return {
+      mode: decoded.mode ?? (decoded.userId ? 'connect' : 'login'),
+      userId: decoded.userId,
+      returnUrl: decoded.returnUrl ?? this.config.getOrThrow<string>('WEB_URL'),
+      popup: decoded.popup,
+    }
   }
 
   buildCallbackRedirect(
     returnUrl: string,
     params: { success: boolean; provider?: OAuthProvider; error?: string },
     popup = false,
+    mode: 'login' | 'connect' = 'connect',
   ): string {
-    const path = popup ? '/oauth/callback' : '/settings/integrations'
+    const path =
+      mode === 'login'
+        ? '/auth/vk/callback'
+        : popup
+          ? '/oauth/callback'
+          : '/settings/integrations'
     const url = new URL(`${returnUrl}${path}`)
     url.searchParams.set('oauth', params.success ? 'success' : 'error')
     if (params.provider) url.searchParams.set('provider', params.provider)
@@ -147,11 +190,25 @@ export class OAuthService {
     return url.toString()
   }
 
+  buildLoginCallbackRedirect(
+    returnUrl: string,
+    tokens: { accessToken: string; refreshToken: string; user: { id: string; email: string; name: string | null } },
+  ): string {
+    const url = new URL(`${returnUrl}/auth/vk/callback`)
+    const hash = new URLSearchParams({
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+      user: JSON.stringify(tokens.user),
+    }).toString()
+    return `${url.toString()}#${hash}`
+  }
+
   mapRouteProvider(route: string): OAuthProvider | null {
     const normalized = route.toLowerCase()
     const map: Record<string, OAuthProvider> = {
       facebook: OAuthProvider.FACEBOOK,
       instagram: OAuthProvider.FACEBOOK,
+      vk: OAuthProvider.VK,
     }
     return map[normalized] ?? null
   }

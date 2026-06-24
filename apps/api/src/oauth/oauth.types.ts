@@ -12,8 +12,11 @@ export interface OAuthProfile {
   subscriberCount?: number | null
 }
 
+export type OAuthStateMode = 'login' | 'connect'
+
 export interface OAuthStatePayload {
-  userId: string
+  mode: OAuthStateMode
+  userId?: string
   returnUrl: string
   popup?: boolean
 }
