@@ -25,6 +25,11 @@ import { PrismaService } from '../prisma/prisma.service'
 type PublicationWithMetrics = Publication & {
   snapshots: MetricSnapshot[]
   metricHistory?: MetricHistoryEntry[]
+  subscriberSource?: {
+    id: string
+    handle: string | null
+    title: string | null
+  } | null
 }
 
 type TopicWithTree = Topic & {
@@ -35,6 +40,7 @@ type TopicWithTree = Topic & {
 
 const publicationInclude = {
   snapshots: true,
+  subscriberSource: true,
   metricHistory: {
     orderBy: [{ capturedAt: 'desc' as const }, { id: 'desc' as const }],
     take: 1,
@@ -368,6 +374,11 @@ export class TopicsService {
       status: publication.status,
       publishedAt: publication.publishedAt?.toISOString() ?? null,
       metricTrackingMode: publication.metricTrackingMode,
+      subscriberSourceId: publication.subscriberSourceId,
+      subscriberSourceHandle:
+        publication.subscriberSource?.handle ??
+        publication.subscriberSource?.title ??
+        null,
       order: publication.order,
       snapshots: publication.snapshots.map((s) => this.toSnapshotDto(s)),
       highlightMetricDeltas,

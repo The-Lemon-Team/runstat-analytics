@@ -60,4 +60,8 @@ export class CreatePublicationDto {
   @ValidateNested()
   @Type(() => InitialMetricsDto)
   initialMetrics?: InitialMetricsDto
+
+  @IsOptional()
+  @IsString()
+  subscriberSourceId?: string | null
 }

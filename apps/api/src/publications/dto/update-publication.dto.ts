@@ -13,4 +13,8 @@ export class UpdatePublicationDto {
   @IsOptional()
   @IsEnum(MetricTrackingMode)
   metricTrackingMode?: MetricTrackingMode
+
+  @IsOptional()
+  @IsString()
+  subscriberSourceId?: string | null
 }

@@ -29,6 +29,7 @@ const HISTORY_PAGE_SIZE = 20
 
 const publicationForDtoInclude = {
   snapshots: true,
+  subscriberSource: true,
   metricHistory: {
     orderBy: [{ capturedAt: 'desc' as const }, { id: 'desc' as const }],
     take: 1,
@@ -103,6 +104,11 @@ export class PublicationsService {
       }),
     )
     const order = (maxOrder._max.order ?? -1) + 1
+    const subscriberSourceId = await this.resolveSubscriberSourceId(
+      userId,
+      dto.provider,
+      dto.subscriberSourceId,
+    )
 
     const publication = await this.prisma.withFreshConnection(async (db) => {
       const created = await db.publication.create({
@@ -116,9 +122,10 @@ export class PublicationsService {
           publishedAt:
             status === PublicationStatus.PUBLISHED ? new Date() : null,
           metricTrackingMode,
+          subscriberSourceId,
           order,
         },
-        include: { snapshots: true },
+        include: { snapshots: true, subscriberSource: true },
       })
 
       if (initialMetrics) {
@@ -127,7 +134,7 @@ export class PublicationsService {
 
       return db.publication.findUniqueOrThrow({
         where: { id: created.id },
-        include: { snapshots: true },
+        include: publicationForDtoInclude,
       })
     })
 
@@ -164,6 +171,18 @@ export class PublicationsService {
         : publication.postUrl
     const label =
       dto.label !== undefined ? dto.label.trim() || null : publication.label
+
+    const nextSubscriberSourceId =
+      dto.subscriberSourceId !== undefined
+        ? await this.resolveSubscriberSourceId(
+            userId,
+            publication.provider as Provider,
+            dto.subscriberSourceId,
+          )
+        : publication.subscriberSourceId
+    const subscriberSourceChanged =
+      dto.subscriberSourceId !== undefined &&
+      nextSubscriberSourceId !== publication.subscriberSourceId
 
     const modeChangingToLive =
       previousMode === MetricTrackingMode.MANUAL &&
@@ -256,6 +275,7 @@ export class PublicationsService {
         metricTrackingMode?: MetricTrackingMode
         status?: PublicationStatus
         publishedAt?: Date | null
+        subscriberSourceId?: string | null
       } = {}
 
       if (dto.label !== undefined) {
@@ -275,6 +295,20 @@ export class PublicationsService {
 
       if (dto.metricTrackingMode !== undefined) {
         data.metricTrackingMode = nextMode
+      }
+
+      if (dto.subscriberSourceId !== undefined) {
+        data.subscriberSourceId = nextSubscriberSourceId
+      }
+
+      if (subscriberSourceChanged && nextSubscriberSourceId) {
+        await db.publicationChannelAttachment.create({
+          data: {
+            publicationId,
+            subscriberSourceId: nextSubscriberSourceId,
+            attachedAt: new Date(),
+          },
+        })
       }
 
       await db.publication.update({
@@ -341,6 +375,7 @@ export class PublicationsService {
   async updateManualMetrics(
     userId: string,
     publicationId: string,
+    views: number,
     likes: number,
     comments: number,
   ): Promise<PublicationDto> {
@@ -355,12 +390,14 @@ export class PublicationsService {
     const liveSnapshot = publication.snapshots.find(
       (snapshot) => snapshot.kind === MetricSnapshotKind.LIVE,
     )
+    const previousViews = liveSnapshot?.views ?? 0
     const previousLikes = liveSnapshot?.likes ?? 0
     const previousComments = liveSnapshot?.comments ?? 0
+    const viewsDelta = views - previousViews
     const likesDelta = likes - previousLikes
     const commentsDelta = comments - previousComments
 
-    if (likesDelta === 0 && commentsDelta === 0) {
+    if (viewsDelta === 0 && likesDelta === 0 && commentsDelta === 0) {
       return this.topics.toPublicationDto(publication)
     }
 
@@ -375,12 +412,13 @@ export class PublicationsService {
         create: {
           publicationId,
           kind: MetricSnapshotKind.LIVE,
+          views,
           likes,
           comments,
-          views: liveSnapshot?.views ?? 0,
           shares: liveSnapshot?.shares ?? 0,
         },
         update: {
+          views,
           likes,
           comments,
           capturedAt: new Date(),
@@ -391,13 +429,13 @@ export class PublicationsService {
         data: {
           publicationId,
           source: MetricCaptureSource.MANUAL,
+          views,
           likes,
           comments,
-          views: liveSnapshot?.views ?? 0,
           shares: liveSnapshot?.shares ?? 0,
+          viewsDelta,
           likesDelta,
           commentsDelta,
-          viewsDelta: 0,
         },
       })
 
@@ -439,6 +477,30 @@ export class PublicationsService {
       items: page.map((entry) => this.toHistoryDto(entry)),
       nextCursor: hasMore ? page[page.length - 1]!.id : null,
     }
+  }
+
+  private async resolveSubscriberSourceId(
+    userId: string,
+    provider: Provider,
+    subscriberSourceId?: string | null,
+  ): Promise<string | null> {
+    if (!subscriberSourceId) return null
+
+    const source = await this.prisma.subscriberSource.findUnique({
+      where: { id: subscriberSourceId },
+    })
+
+    if (!source || source.userId !== userId) {
+      throw new BadRequestException('Канал подписчиков не найден')
+    }
+
+    if (source.provider !== provider) {
+      throw new BadRequestException(
+        'Канал подписчиков должен совпадать с площадкой публикации',
+      )
+    }
+
+    return source.id
   }
 
   private async getOwnedPublication(userId: string, publicationId: string) {

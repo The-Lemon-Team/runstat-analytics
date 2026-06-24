@@ -67,6 +67,7 @@ export class PublicationsController {
     return this.publications.updateManualMetrics(
       user.id,
       publicationId,
+      body.views,
       body.likes,
       body.comments,
     )
