@@ -8,7 +8,7 @@ export interface ConnectableProvider {
   handle: string
 }
 
-export type SubscriberConnectionKind = 'oauth' | 'channel-url'
+export type SubscriberConnectionKind = 'oauth' | 'channel-url' | 'link-only'
 
 export interface SubscribableSourceType {
   id: string
@@ -31,7 +31,7 @@ export const SUBSCRIBABLE_SOURCE_TYPES: SubscribableSourceType[] = [
     drift: [-2, 9],
     defaultHandle: 'vk.com/studio.s10',
     addLabel: 'Группа VK',
-    addDescription: 'Ссылка на группу vk.com/…',
+    addDescription: 'Ссылка vk.com/… — ручной учёт, Live скоро',
   },
   {
     id: 'youtube',
@@ -43,14 +43,22 @@ export const SUBSCRIBABLE_SOURCE_TYPES: SubscribableSourceType[] = [
     addDescription: 'Ссылка или @handle канала',
   },
   {
+    id: 'tg',
+    kind: 'link-only',
+    baseSubscribers: 0,
+    drift: [0, 0],
+    defaultHandle: '@channel',
+    addLabel: 'Группа Telegram',
+    addDescription: 'Ссылка t.me/… — без live-счётчика',
+  },
+  {
     id: 'instagram',
-    kind: 'oauth',
-    oauthRouteId: 'facebook',
-    baseSubscribers: 215800,
-    drift: [-4, 18],
+    kind: 'link-only',
+    baseSubscribers: 0,
+    drift: [0, 0],
     defaultHandle: '@studio.s10',
     addLabel: 'Аккаунт Instagram',
-    addDescription: 'Авторизация через Meta',
+    addDescription: 'Ссылка instagram.com/… — ручной учёт, Live скоро',
   },
 ]
 
@@ -74,10 +82,15 @@ export interface LiveSubscriberSource {
   providerId: string
   handle: string
   baseSubscribers: number
+  /** Raw count from API; null when not set (e.g. link-only Telegram). */
+  subscriberCount?: number | null
   drift: [number, number]
   /** When set, subscriber count is synced via the subscribers API. */
   pollInput?: string
   channelId?: string
+  profileUrl?: string | null
+  trackingMode?: 'AUTOMATIC' | 'MANUAL'
+  linkOnly?: boolean
   sessionDelta?: number
   lastChangedAt?: string | null
   lastChange?: SubscriberSnapshotDto | null
@@ -177,6 +190,87 @@ export function parseVkGroupInput(
   if (/^[\w.-]+$/.test(trimmed)) {
     const normalized = trimmed.toLowerCase()
     return { handle: `vk.com/${normalized}`, key: `vk:${normalized}` }
+  }
+
+  return null
+}
+
+export function parseInstagramInput(
+  input: string,
+): { handle: string; key: string; profileUrl: string } | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  const urlMatch = trimmed.match(
+    /(?:https?:\/\/)?(?:www\.)?(?:instagram\.com|instagr\.am)\/([a-zA-Z0-9._]+)/i,
+  )
+  if (urlMatch) {
+    const slug = urlMatch[1]!.toLowerCase()
+    return {
+      handle: `@${slug}`,
+      key: `instagram:${slug}`,
+      profileUrl: `https://instagram.com/${slug}`,
+    }
+  }
+
+  const atMatch = trimmed.match(/^@([a-zA-Z0-9._]+)$/i)
+  if (atMatch) {
+    const slug = atMatch[1]!.toLowerCase()
+    return {
+      handle: `@${slug}`,
+      key: `instagram:${slug}`,
+      profileUrl: `https://instagram.com/${slug}`,
+    }
+  }
+
+  if (/^[a-zA-Z0-9._]+$/.test(trimmed)) {
+    const slug = trimmed.toLowerCase()
+    return {
+      handle: `@${slug}`,
+      key: `instagram:${slug}`,
+      profileUrl: `https://instagram.com/${slug}`,
+    }
+  }
+
+  return null
+}
+
+export function parseTelegramChannelInput(
+  input: string,
+): { handle: string; key: string; profileUrl: string } | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  const urlMatch = trimmed.match(
+    /(?:https?:\/\/)?(?:t\.me|telegram\.me)\/(?:\+|joinchat\/)?([+\w-]+)/i,
+  )
+  if (urlMatch) {
+    const slug = urlMatch[1]!
+    const handle = `@${slug.replace(/^\+/, '')}`
+    return {
+      handle,
+      key: `tg:${slug.toLowerCase()}`,
+      profileUrl: `https://t.me/${slug}`,
+    }
+  }
+
+  const atMatch = trimmed.match(/^@([\w+][\w-]*)$/i)
+  if (atMatch) {
+    const slug = atMatch[1]!
+    return {
+      handle: `@${slug}`,
+      key: `tg:${slug.toLowerCase()}`,
+      profileUrl: `https://t.me/${slug}`,
+    }
+  }
+
+  if (/^[\w-]+$/.test(trimmed)) {
+    const slug = trimmed.toLowerCase()
+    return {
+      handle: `@${slug}`,
+      key: `tg:${slug}`,
+      profileUrl: `https://t.me/${slug}`,
+    }
   }
 
   return null

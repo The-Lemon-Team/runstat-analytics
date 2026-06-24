@@ -39,7 +39,7 @@ function SortableStageItem({
   onAddPublication: (stageId: string) => void
   onMetricsSaved?: (
     publicationId: string,
-    metrics: { likes: number; comments: number },
+    metrics: { views: number; likes: number; comments: number },
     historyEntry: MetricHistoryEntryDto,
   ) => void
   onStageChange?: (
@@ -117,7 +117,7 @@ export function SortableStageList({
   onAddPublication: (stageId: string) => void
   onMetricsSaved?: (
     publicationId: string,
-    metrics: { likes: number; comments: number },
+    metrics: { views: number; likes: number; comments: number },
     historyEntry: MetricHistoryEntryDto,
   ) => void
   onReorder: (stageIds: string[]) => void

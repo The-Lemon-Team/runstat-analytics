@@ -67,6 +67,9 @@ export interface PublicationView {
   url: string
   status: PublicationViewStatus
   metricTrackingMode: PublicationDto['metricTrackingMode']
+  subscriberSourceId: string | null
+  subscriberSourceHandle: string | null
+  publishedAt: string | null
   metrics: DashboardMetrics
   metricDeltas: { views: number; likes: number; comments: number }
   /** Significant negative deltas from recent live→manual transition. */
@@ -131,6 +134,9 @@ function toPublicationView(pub: PublicationDto, stageId: string): PublicationVie
     status,
     metricTrackingMode:
       pub.metricTrackingMode ?? MetricTrackingMode.MANUAL,
+    subscriberSourceId: pub.subscriberSourceId ?? null,
+    subscriberSourceHandle: pub.subscriberSourceHandle ?? null,
+    publishedAt: pub.publishedAt ?? null,
     metrics,
     metricDeltas,
     highlightMetricDeltas: pub.highlightMetricDeltas ?? null,

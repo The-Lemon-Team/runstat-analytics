@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/card'
 import { LiveModeCornerToggle } from './LiveModeCornerToggle'
 import { ProviderBadge } from './ProviderBadge'
+import { SubscriberChannelSelect } from './SubscriberChannelSelect'
 
 export interface NewPublicationInput {
   providerId: string
@@ -33,6 +34,7 @@ export interface NewPublicationInput {
   url: string
   status: PublicationViewStatus
   metricTrackingMode?: MetricTrackingModeType
+  subscriberSourceId?: string | null
   metrics?: { views: number; likes: number; comments: number }
 }
 
@@ -59,11 +61,12 @@ export function AddPublicationDialog({
   isSubmitting?: boolean
 }) {
   const { t } = useTranslation()
-  const { oauthConnections } = useDashboardShell()
+  const { oauthConnections, subscriberSources } = useDashboardShell()
   const [providerId, setProviderId] = useState('tg')
   const [label, setLabel] = useState('')
   const [stageKey, setStageKey] = useState(defaultStageKey ?? '')
   const [url, setUrl] = useState('')
+  const [subscriberSourceId, setSubscriberSourceId] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [liveTracking, setLiveTracking] = useState(false)
   const [fetchYouTubeMetrics, { isFetching }] = useLazyGetYouTubeMetricsQuery()
@@ -79,8 +82,13 @@ export function AddPublicationDialog({
       setUrl('')
       setFetchError(null)
       setLiveTracking(false)
+      setSubscriberSourceId(null)
     }
   }, [open, defaultStageKey, stageOptions])
+
+  useEffect(() => {
+    setSubscriberSourceId(null)
+  }, [providerId])
 
   const canUseLive = useMemo(
     () => canUseAutomaticTrackingForProviderId(providerId, oauthConnections),
@@ -150,6 +158,7 @@ export function AddPublicationDialog({
         url: trimmedUrl,
         status: trimmedUrl ? 'published' : 'scheduled',
         metricTrackingMode,
+        subscriberSourceId,
         metrics,
       })
       onOpenChange(false)
@@ -219,6 +228,14 @@ export function AddPublicationDialog({
               ))}
             </select>
           </div>
+
+          <SubscriberChannelSelect
+            providerId={providerId}
+            sources={subscriberSources}
+            value={subscriberSourceId}
+            onChange={setSubscriberSourceId}
+            disabled={busy}
+          />
 
           <div
             className={cn(

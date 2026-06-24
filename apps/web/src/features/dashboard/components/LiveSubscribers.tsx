@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, Pencil, Plus, Users, X } from 'lucide-react'
+import { Check, ChevronDown, Pencil, Plus, Users } from 'lucide-react'
 import {
   useDeleteSubscriberSourceMutation,
   useRevokeOAuthConnectionMutation,
@@ -7,6 +7,7 @@ import {
 import {
   SUBSCRIBABLE_SOURCE_TYPES,
   type LiveSubscriberSource,
+  getSubscribableSourceType,
   providerOf,
 } from '@/lib/provider-connections'
 import { formatNumber } from '@/lib/dashboard-utils'
@@ -22,8 +23,8 @@ import {
 } from '@/components/ui/card'
 import { ProviderBadge } from './ProviderBadge'
 import { AddSubscriberSourceDialog } from './AddSubscriberSourceDialog'
-import { SubscriberDeltaBadge } from './SubscriberDeltaBadge'
 import { SubscriberHistoryModal } from './SubscriberHistoryModal'
+import { SubscriberSourceCard } from './SubscriberSourceCard'
 
 type LiveState = Record<string, { count: number; delta: number }>
 
@@ -36,16 +37,22 @@ function AddSubscriberButton({
   connectingId,
   onConnectOAuth,
   onAddChannel,
+  onOpenChange,
   align = 'right',
 }: {
   availableTypes: typeof SUBSCRIBABLE_SOURCE_TYPES
   connectingId: string | null
   onConnectOAuth: (id: string) => void
   onAddChannel: (providerId: string) => void
+  onOpenChange?: (open: boolean) => void
   align?: 'left' | 'center' | 'right'
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    onOpenChange?.(open)
+  }, [open, onOpenChange])
 
   useEffect(() => {
     if (!open) return
@@ -104,7 +111,7 @@ function AddSubscriberButton({
       {open ? (
         <div
           className={cn(
-            'absolute top-full z-20 mt-1.5 w-60 overflow-hidden rounded-xl border border-border bg-white shadow-lg dark:bg-card',
+            'absolute top-full z-50 mt-1.5 w-60 overflow-hidden rounded-xl border border-border bg-white shadow-lg dark:bg-card',
             menuPositionClass,
           )}
         >
@@ -215,6 +222,7 @@ export function LiveSubscribers({
   onConnectOAuth: (id: string) => void
   onYouTubeChannelAdded: () => void
 }) {
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [dialogProviderId, setDialogProviderId] = useState<string | null>(null)
   const [historySource, setHistorySource] = useState<LiveSubscriberSource | null>(
     null,
@@ -280,7 +288,7 @@ export function LiveSubscribers({
   )
 
   const availableTypes = SUBSCRIBABLE_SOURCE_TYPES.filter((source) => {
-    if (source.kind === 'channel-url') return true
+    if (source.kind === 'channel-url' || source.kind === 'link-only') return true
     return !connectedProviderIds.has(source.id)
   })
 
@@ -312,8 +320,13 @@ export function LiveSubscribers({
 
   return (
     <>
-      <section className="relative z-10 rounded-2xl border border-border bg-white dark:bg-card">
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <section
+        className={cn(
+          'relative rounded-2xl border border-border bg-white dark:bg-card',
+          addMenuOpen && 'z-30',
+        )}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
             {hasSources ? (
               <span className="relative flex size-2.5">
@@ -343,6 +356,7 @@ export function LiveSubscribers({
                   connectingId={connectingId}
                   onConnectOAuth={onConnectOAuth}
                   onAddChannel={setDialogProviderId}
+                  onOpenChange={setAddMenuOpen}
                 />
                 <Button
                   type="button"
@@ -375,79 +389,45 @@ export function LiveSubscribers({
         </div>
 
         {hasSources ? (
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 p-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {sources.map((source) => {
-              const provider = providerOf(source.providerId)
               const isTracked = Boolean(source.sourceId)
               const count = isTracked
-                ? source.baseSubscribers
+                ? (source.subscriberCount ?? (source.linkOnly ? null : source.baseSubscribers))
                 : (live[source.key]?.count ?? source.baseSubscribers)
               const delta = isTracked
                 ? (source.sessionDelta ?? 0)
                 : (live[source.key]?.delta ?? 0)
 
               return (
-                <div
+                <SubscriberSourceCard
                   key={source.key}
-                  className={cn(
-                    'relative flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3.5 dark:bg-card',
-                    editMode && 'ring-1 ring-primary/20',
-                  )}
-                >
-                  {editMode ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="absolute right-2 top-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      aria-label={`Удалить ${provider.name}`}
-                      disabled={isRemoving}
-                      onClick={() => setPendingRemove(source)}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  ) : null}
-                  <ProviderBadge providerId={source.providerId} />
-                  <div className="min-w-0 flex-1 leading-tight">
-                    <p className="truncate text-xs text-muted-foreground">
-                      {provider.name}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground/80">
-                      {source.handle}
-                    </p>
-                    <p className="font-mono text-lg font-semibold tabular-nums tracking-tight">
-                      {formatNumber(count)}
-                    </p>
-                  </div>
-                  {isTracked && !editMode ? (
-                    <SubscriberDeltaBadge
-                      delta={delta}
-                      lastChangedAt={source.lastChangedAt ?? null}
-                      lastChange={source.lastChange ?? null}
-                      onClick={() => setHistorySource(source)}
-                    />
-                  ) : (
-                    <SubscriberDeltaBadge
-                      delta={delta}
-                      lastChangedAt={editMode ? null : (source.lastChangedAt ?? null)}
-                      lastChange={editMode ? null : (source.lastChange ?? null)}
-                    />
-                  )}
-                </div>
+                  source={source}
+                  count={count}
+                  delta={delta}
+                  editMode={editMode}
+                  isRemoving={isRemoving}
+                  onRemove={() => setPendingRemove(source)}
+                  onOpenHistory={
+                    isTracked ? () => setHistorySource(source) : undefined
+                  }
+                />
               )
             })}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
             <p className="max-w-md text-sm text-muted-foreground">
-              Подключите группу VK, аккаунт Instagram или добавьте канал YouTube,
-              чтобы видеть подписчиков в реальном времени.
+              Подключите группу VK, канал YouTube, Telegram или аккаунт
+              Instagram — укажите ссылку и при необходимости стартовое число
+              подписчиков.
             </p>
             <AddSubscriberButton
               availableTypes={availableTypes}
               connectingId={connectingId}
               onConnectOAuth={onConnectOAuth}
               onAddChannel={setDialogProviderId}
+              onOpenChange={setAddMenuOpen}
               align="center"
             />
           </div>
@@ -455,8 +435,11 @@ export function LiveSubscribers({
       </section>
 
       <AddSubscriberSourceDialog
-        open={dialogProviderId === 'youtube'}
-        providerId="youtube"
+        open={Boolean(
+          dialogProviderId &&
+            getSubscribableSourceType(dialogProviderId)?.kind !== 'oauth',
+        )}
+        providerId={dialogProviderId ?? 'youtube'}
         onOpenChange={(open) => {
           if (!open) setDialogProviderId(null)
         }}

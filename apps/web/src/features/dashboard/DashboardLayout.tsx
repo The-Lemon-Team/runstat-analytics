@@ -39,15 +39,20 @@ function mapDbSourceToLive(source: SubscriberSourceDto): LiveSubscriberSource {
   const sourceType = getSubscribableSourceType(
     providerIdFromEnum(source.provider),
   )
+  const providerId = providerIdFromEnum(source.provider)
   return {
-    key: `${providerIdFromEnum(source.provider)}:${source.externalId}`,
+    key: `${providerId}:${source.externalId}`,
     sourceId: source.id,
-    providerId: providerIdFromEnum(source.provider),
+    providerId,
     handle: source.handle ?? source.externalId,
     baseSubscribers: source.subscriberCount ?? 0,
+    subscriberCount: source.subscriberCount,
     drift: sourceType?.drift ?? [0, 0],
     pollInput: source.externalId,
     channelId: source.externalId,
+    profileUrl: source.profileUrl,
+    trackingMode: source.trackingMode,
+    linkOnly: sourceType?.kind === 'link-only',
     sessionDelta: source.sessionDelta,
     lastChangedAt: source.lastChangedAt,
     lastChange: source.lastChange,

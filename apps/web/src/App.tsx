@@ -3,6 +3,7 @@ import { ProtectedRoute, GuestRoute } from '@/features/auth/components/Protected
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { OAuthCallbackPage } from '@/features/auth/pages/OAuthCallbackPage'
 import { RegisterPage } from '@/features/auth/pages/RegisterPage'
+import { VkAuthCallbackPage } from '@/features/auth/pages/VkAuthCallbackPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 
 export function App() {
@@ -15,6 +16,7 @@ export function App() {
         </Route>
 
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+        <Route path="/auth/vk/callback" element={<VkAuthCallbackPage />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/*" element={<DashboardPage />} />

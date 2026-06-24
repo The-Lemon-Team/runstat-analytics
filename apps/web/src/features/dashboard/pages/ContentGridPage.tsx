@@ -9,7 +9,6 @@ import { useDashboardTopicsContext } from '@/features/dashboard/DashboardTopicsP
 import { DashboardGlobalStats } from '@/features/dashboard/components/DashboardGlobalStats'
 import { LiveSubscribers } from '@/features/dashboard/components/LiveSubscribers'
 import { TopicSection } from '@/features/dashboard/components/TopicSection'
-import { WeeklyPublicationsPanel } from '@/features/dashboard/components/WeeklyPublicationsPanel'
 import {
   AddPublicationDialog,
   type NewPublicationInput,
@@ -41,7 +40,6 @@ export function ContentGridPage() {
   const { t } = useTranslation()
   const {
     subscriberSources,
-    weeklyPublications,
     connectingId,
     onConnectOAuth,
     onYouTubeChannelAdded,
@@ -125,13 +123,14 @@ export function ContentGridPage() {
           : PublicationStatus.PLANNED,
       metricTrackingMode:
         input.metricTrackingMode ?? MetricTrackingMode.MANUAL,
+      subscriberSourceId: input.subscriberSourceId ?? undefined,
       initialMetrics: input.metrics,
     }).unwrap()
   }
 
   function handleMetricsSaved(
     publicationId: string,
-    metrics: { likes: number; comments: number },
+    metrics: { views: number; likes: number; comments: number },
     historyEntry: MetricHistoryEntryDto,
   ) {
     setTopics((prev) =>
@@ -145,11 +144,12 @@ export function ContentGridPage() {
                   ...publication,
                   metrics: {
                     ...publication.metrics,
+                    views: metrics.views,
                     likes: metrics.likes,
                     comments: metrics.comments,
                   },
                   metricDeltas: {
-                    views: publication.metricDeltas.views,
+                    views: publication.metricDeltas.views + historyEntry.viewsDelta,
                     likes: publication.metricDeltas.likes + historyEntry.likesDelta,
                     comments:
                       publication.metricDeltas.comments + historyEntry.commentsDelta,
@@ -378,8 +378,6 @@ export function ContentGridPage() {
               likes={totals.likes}
               activeTopics={sourceTopics.length}
             />
-
-            <WeeklyPublicationsPanel publications={weeklyPublications} />
 
             {TABLE_VIEW_ENABLED && view === 'table' ? (
               <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">

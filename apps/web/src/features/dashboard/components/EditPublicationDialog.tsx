@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/card'
 import { LiveModeCornerToggle } from './LiveModeCornerToggle'
 import { ProviderBadge } from './ProviderBadge'
+import { SubscriberChannelSelect } from './SubscriberChannelSelect'
 
 function DeletePublicationConfirmDialog({
   open,
@@ -90,9 +91,12 @@ export function EditPublicationDialog({
   onOpenChange: (open: boolean) => void
   publication: PublicationView
 }) {
-  const { oauthConnections } = useDashboardShell()
+  const { oauthConnections, subscriberSources } = useDashboardShell()
   const [label, setLabel] = useState(publication.label)
   const [url, setUrl] = useState(publication.url)
+  const [subscriberSourceId, setSubscriberSourceId] = useState<string | null>(
+    publication.subscriberSourceId,
+  )
   const [liveTracking, setLiveTracking] = useState(
     isLiveMetricTracking(publication.metricTrackingMode),
   )
@@ -108,6 +112,7 @@ export function EditPublicationDialog({
     if (!open) return
     setLabel(publication.label)
     setUrl(publication.url)
+    setSubscriberSourceId(publication.subscriberSourceId)
     setLiveTracking(isLiveMetricTracking(publication.metricTrackingMode))
     setError(null)
     setConfirmDeleteOpen(false)
@@ -142,6 +147,8 @@ export function EditPublicationDialog({
       : MetricTrackingMode.MANUAL
     const modeChanged =
       nextMode !== publication.metricTrackingMode
+    const channelChanged =
+      subscriberSourceId !== publication.subscriberSourceId
 
     try {
       await updatePublication({
@@ -149,6 +156,7 @@ export function EditPublicationDialog({
         label: label.trim(),
         postUrl: trimmedUrl || null,
         metricTrackingMode: modeChanged ? nextMode : undefined,
+        subscriberSourceId: channelChanged ? subscriberSourceId : undefined,
       }).unwrap()
       onOpenChange(false)
     } catch {
@@ -183,8 +191,8 @@ export function EditPublicationDialog({
           <DialogHeader>
             <DialogTitle>Редактирование публикации</DialogTitle>
             <DialogDescription>
-              Измените метку, ссылку или режим учёта метрик. Площадку изменить
-              нельзя.
+              Измените метку, ссылку, канал подписчиков или режим учёта метрик.
+              Площадку изменить нельзя.
             </DialogDescription>
           </DialogHeader>
 
@@ -261,6 +269,14 @@ export function EditPublicationDialog({
                     : 'Ссылка нужна для автоматического обновления метрик.'}
               </p>
             </div>
+
+            <SubscriberChannelSelect
+              providerId={publication.providerId}
+              sources={subscriberSources}
+              value={subscriberSourceId}
+              onChange={setSubscriberSourceId}
+              disabled={isBusy}
+            />
 
             {error ? (
               <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">

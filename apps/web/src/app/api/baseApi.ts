@@ -266,14 +266,34 @@ export const baseApi = createApi({
     }),
     getSubscriberHistory: builder.query<
       SubscriberHistoryPageDto,
-      { sourceId: string; cursor?: string }
+      {
+        sourceId: string
+        cursor?: string
+        filter?: string
+        publicationId?: string
+        since?: string
+      }
     >({
-      query: ({ sourceId, cursor }) => {
+      query: ({ sourceId, cursor, filter, publicationId, since }) => {
         const params = new URLSearchParams()
         if (cursor) params.set('cursor', cursor)
+        if (filter) params.set('filter', filter)
+        if (publicationId) params.set('publicationId', publicationId)
+        if (since) params.set('since', since)
         const qs = params.toString()
         return `/subscribers/sources/${sourceId}/history${qs ? `?${qs}` : ''}`
       },
+    }),
+    updateManualSubscriberCount: builder.mutation<
+      SubscriberSourceDto,
+      { sourceId: string; count: number }
+    >({
+      query: ({ sourceId, count }) => ({
+        url: `/subscribers/sources/${sourceId}/count`,
+        method: 'PATCH',
+        body: { count },
+      }),
+      invalidatesTags: ['SubscriberSources'],
     }),
     updatePublication: builder.mutation<
       PublicationDto,
@@ -297,10 +317,10 @@ export const baseApi = createApi({
       PublicationDto,
       { publicationId: string } & UpdateManualMetricsRequest
     >({
-      query: ({ publicationId, likes, comments }) => ({
+      query: ({ publicationId, views, likes, comments }) => ({
         url: `/publications/${publicationId}/metrics`,
         method: 'PATCH',
-        body: { likes, comments },
+        body: { views, likes, comments },
       }),
       invalidatesTags: ['Topics', 'Publications'],
     }),
@@ -351,9 +371,11 @@ export const {
   useRevokeOAuthConnectionMutation,
   useSyncSubscriberSourcesMutation,
   useLazyGetSubscriberHistoryQuery,
+  useUpdateManualSubscriberCountMutation,
   useUpdatePublicationMutation,
   useDeletePublicationMutation,
   useUpdateManualMetricsMutation,
   useUpdateMetricTrackingModeMutation,
+  useGetMetricHistoryQuery,
   useLazyGetMetricHistoryQuery,
 } = baseApi

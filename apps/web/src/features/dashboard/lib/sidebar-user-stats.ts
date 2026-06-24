@@ -16,7 +16,7 @@ import { providerIdFromEnum } from '@/lib/providers'
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_WEEKLY_PUBLICATIONS = 5
 
-const SUBSCRIBABLE_PROVIDER_IDS = new Set(['vk', 'youtube', 'instagram'])
+const SUBSCRIBABLE_PROVIDER_IDS = new Set(['vk', 'youtube', 'instagram', 'tg'])
 
 export type SidebarUserStats = {
   topicsCount: number
@@ -80,6 +80,13 @@ function findSubscriberSource(
   publication: PublicationDto,
   sources: LiveSubscriberSource[],
 ): LiveSubscriberSource | null {
+  if (publication.subscriberSourceId) {
+    const linked = sources.find(
+      (source) => source.sourceId === publication.subscriberSourceId,
+    )
+    if (linked) return linked
+  }
+
   const providerId = providerIdFromEnum(publication.provider)
   if (!SUBSCRIBABLE_PROVIDER_IDS.has(providerId)) return null
 
@@ -94,7 +101,15 @@ function findSubscriberSource(
   return byChannel ?? matches[0]!
 }
 
-function estimateSubscribersAtPublish(
+export function findLinkedSubscriberSource(
+  subscriberSourceId: string | null,
+  sources: LiveSubscriberSource[],
+): LiveSubscriberSource | null {
+  if (!subscriberSourceId) return null
+  return sources.find((source) => source.sourceId === subscriberSourceId) ?? null
+}
+
+export function estimateSubscribersAtPublish(
   source: LiveSubscriberSource,
   publishedAt: string,
 ): { atPublish: number; delta: number } | null {
@@ -124,6 +139,58 @@ function estimateSubscribersAtPublish(
 
   const atPublish = Math.max(0, current - growth)
   return { atPublish, delta: growth }
+}
+
+export function resolveSubscribersBeforePublish(
+  publication: {
+    subscriberSourceId: string | null
+    publishedAt: string | null
+  },
+  sources: LiveSubscriberSource[],
+): number | null {
+  return resolvePublicationSubscriberInsight(publication, sources)?.atPublish ?? null
+}
+
+export function resolvePublicationSubscriberInsight(
+  publication: {
+    subscriberSourceId: string | null
+    publishedAt: string | null
+  },
+  sources: LiveSubscriberSource[],
+): {
+  atPublish: number
+  delta: number
+  sourceId: string
+  handle: string
+} | null {
+  const source = findLinkedSubscriberSource(
+    publication.subscriberSourceId,
+    sources,
+  )
+  if (!source || !source.sourceId) return null
+
+  const handle = source.handle
+
+  if (publication.publishedAt) {
+    const insight = estimateSubscribersAtPublish(source, publication.publishedAt)
+    if (!insight) return null
+    return {
+      atPublish: insight.atPublish,
+      delta: insight.delta,
+      sourceId: source.sourceId,
+      handle,
+    }
+  }
+
+  const current = source.subscriberCount ?? source.baseSubscribers
+  if (current === null || current === undefined) return null
+
+  return {
+    atPublish: current,
+    delta: 0,
+    sourceId: source.sourceId,
+    handle,
+  }
 }
 
 function publicationMetrics(publication: PublicationDto) {

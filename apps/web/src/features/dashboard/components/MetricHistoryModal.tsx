@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MetricHistoryEntryDto } from '@spt/shared'
 import { MetricCaptureSource } from '@spt/shared'
+import { Loader2 } from 'lucide-react'
 import { useLazyGetMetricHistoryQuery } from '@/app/api/baseApi'
 import { formatNumber, formatSubscriberDate } from '@/lib/dashboard-utils'
 import { METRIC_CAPTURE_SOURCE_LABELS } from '@/lib/metric-tracking'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { ProviderBadge } from './ProviderBadge'
 
 function SourceBadge({ source }: { source: MetricHistoryEntryDto['source'] }) {
@@ -56,11 +60,18 @@ function DeltaValue({
 }
 
 export type MetricHistoryFocus = 'views' | 'likes' | 'comments'
+export type MetricHistoryMode = 'history' | 'update'
 
 const METRIC_LABELS: Record<MetricHistoryFocus, string> = {
   views: 'просмотров',
   likes: 'лайков',
   comments: 'комментариев',
+}
+
+const METRIC_LABELS_NOMINATIVE: Record<MetricHistoryFocus, string> = {
+  views: 'Просмотры',
+  likes: 'Лайки',
+  comments: 'Комментарии',
 }
 
 function metricValue(entry: MetricHistoryEntryDto, metric: MetricHistoryFocus) {
@@ -82,7 +93,11 @@ export function MetricHistoryModal({
   providerId,
   label,
   localHistory,
-  metric,
+  metric = 'likes',
+  mode = 'history',
+  currentValue = 0,
+  onSave,
+  isSaving = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -91,10 +106,15 @@ export function MetricHistoryModal({
   label: string
   localHistory?: MetricHistoryEntryDto[]
   metric?: MetricHistoryFocus
+  mode?: MetricHistoryMode
+  currentValue?: number
+  onSave?: (value: number) => Promise<void>
+  isSaving?: boolean
 }) {
   const [items, setItems] = useState<MetricHistoryEntryDto[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
+  const [draft, setDraft] = useState(String(currentValue))
   const sentinelRef = useRef<HTMLDivElement>(null)
   const [fetchHistory, { isFetching }] = useLazyGetMetricHistoryQuery()
   const useLocalHistory = localHistory !== undefined
@@ -132,6 +152,12 @@ export function MetricHistoryModal({
   }, [open, publicationId, loadPage, useLocalHistory, localHistory])
 
   useEffect(() => {
+    if (open) {
+      setDraft(String(currentValue))
+    }
+  }, [open, currentValue])
+
+  useEffect(() => {
     if (!open || !hasMore || isFetching || useLocalHistory) return
     const node = sentinelRef.current
     if (!node) return
@@ -149,9 +175,32 @@ export function MetricHistoryModal({
     return () => observer.disconnect()
   }, [open, hasMore, isFetching, cursor, loadPage, useLocalHistory])
 
-  const modalTitle = metric
-    ? `История ${METRIC_LABELS[metric]}`
-    : 'История метрик'
+  const latestEntry = items[0]
+  const latestRecordedValue = latestEntry
+    ? metricValue(latestEntry, metric)
+    : null
+
+  const modalTitle =
+    mode === 'update'
+      ? `Обновить ${METRIC_LABELS[metric]}`
+      : `История ${METRIC_LABELS[metric]}`
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!onSave) return
+
+    const trimmed = draft.trim()
+    if (!trimmed) return
+
+    const parsed = Number.parseInt(trimmed, 10)
+    if (!Number.isFinite(parsed)) return
+
+    const next = Math.max(0, parsed)
+    if (next === currentValue) return
+
+    await onSave(next)
+    onOpenChange(false)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -169,7 +218,69 @@ export function MetricHistoryModal({
           </div>
         </DialogHeader>
 
-        <div className="mt-4 max-h-[50vh] space-y-2 overflow-y-auto pr-1">
+        {mode === 'update' ? (
+          <div className="mt-4 space-y-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-3">
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <p className="text-muted-foreground">Текущее значение</p>
+                <p className="mt-0.5 font-mono text-base font-semibold tabular-nums">
+                  {formatNumber(currentValue)}
+                </p>
+              </div>
+              {latestRecordedValue !== null ? (
+                <div>
+                  <p className="text-muted-foreground">Последняя запись</p>
+                  <p className="mt-0.5 font-mono text-base font-semibold tabular-nums">
+                    {formatNumber(latestRecordedValue)}
+                  </p>
+                  {latestEntry ? (
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      {formatSubscriberDate(latestEntry.capturedAt)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
+            <form onSubmit={(event) => void handleSubmit(event)} className="space-y-2">
+              <Label htmlFor="metric-update-value" className="text-xs">
+                Новое значение — {METRIC_LABELS_NOMINATIVE[metric].toLowerCase()}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="metric-update-value"
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={draft}
+                  disabled={isSaving}
+                  onChange={(event) => setDraft(event.target.value)}
+                  className="h-8 font-mono text-sm tabular-nums"
+                />
+                <Button type="submit" size="sm" disabled={isSaving} className="shrink-0">
+                  {isSaving ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    'Сохранить'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        <div
+          className={cn(
+            'max-h-[50vh] space-y-2 overflow-y-auto pr-1',
+            mode === 'update' ? 'mt-3' : 'mt-4',
+          )}
+        >
+          {mode === 'update' ? (
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              История изменений
+            </p>
+          ) : null}
+
           {items.length === 0 && !isFetching ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Изменений пока не зафиксировано
@@ -187,60 +298,17 @@ export function MetricHistoryModal({
                   <SourceBadge source={entry.source} />
                 </div>
 
-                {metric ? (
-                  <div className="mt-2">
-                    <p className="font-mono text-sm font-medium tabular-nums">
-                      {formatNumber(metricValue(entry, metric))}
-                      <span className="ml-1.5 text-xs font-normal">
-                        <DeltaValue
-                          value={metricDelta(entry, metric)}
-                          label={`Δ ${METRIC_LABELS[metric]}`}
-                        />
-                      </span>
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-2 space-y-2 text-sm">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Просмотры
-                      </p>
-                      <p className="font-mono font-medium tabular-nums">
-                        {formatNumber(entry.views)}
-                        <span className="ml-1.5 text-xs font-normal">
-                          <DeltaValue value={entry.viewsDelta} label="Δ просмотров" />
-                        </span>
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                          Лайки
-                        </p>
-                        <p className="font-mono font-medium tabular-nums">
-                          {formatNumber(entry.likes)}
-                          <span className="ml-1.5 text-xs font-normal">
-                            <DeltaValue value={entry.likesDelta} label="Δ лайков" />
-                          </span>
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                          Комментарии
-                        </p>
-                        <p className="font-mono font-medium tabular-nums">
-                          {formatNumber(entry.comments)}
-                          <span className="ml-1.5 text-xs font-normal">
-                            <DeltaValue
-                              value={entry.commentsDelta}
-                              label="Δ комментариев"
-                            />
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <div className="mt-2">
+                  <p className="font-mono text-sm font-medium tabular-nums">
+                    {formatNumber(metricValue(entry, metric))}
+                    <span className="ml-1.5 text-xs font-normal">
+                      <DeltaValue
+                        value={metricDelta(entry, metric)}
+                        label={`Δ ${METRIC_LABELS[metric]}`}
+                      />
+                    </span>
+                  </p>
+                </div>
               </div>
             ))
           )}

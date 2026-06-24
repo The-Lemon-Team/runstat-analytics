@@ -21,6 +21,8 @@ import {
 } from './MetricHistoryModal'
 import { OfflinePublicationCard } from './OfflinePublicationCard'
 import { ProviderBadge } from './ProviderBadge'
+import { PublicationMetricUpdateSection } from './PublicationMetricUpdateSection'
+import { PublicationSubscriberSection } from './PublicationSubscriberSection'
 import { PublicationTrackingBadge } from './PublicationTrackingBadge'
 
 function StatusDot({ status }: { status: PublicationView['status'] }) {
@@ -58,7 +60,7 @@ export function PublicationSlot({
   compact?: boolean
   onMetricsSaved?: (
     publicationId: string,
-    metrics: { likes: number; comments: number },
+    metrics: { views: number; likes: number; comments: number },
     historyEntry: MetricHistoryEntryDto,
   ) => void
 }) {
@@ -156,21 +158,18 @@ function AutoTrackedPublicationCard({
                 iconClassName="text-muted-foreground/80"
                 value={publication.metrics.views}
                 delta={publication.metricDeltas.views}
-                onOpenHistory={() => openHistory('views')}
               />
               <CompactMetricDisplay
                 icon={ThumbsUp}
                 iconClassName="text-rose-500/80"
                 value={publication.metrics.likes}
                 delta={publication.metricDeltas.likes}
-                onOpenHistory={() => openHistory('likes')}
               />
               <CompactMetricDisplay
                 icon={MessageCircle}
                 iconClassName="text-sky-500/80"
                 value={publication.metrics.comments}
                 delta={publication.metricDeltas.comments}
-                onOpenHistory={() => openHistory('comments')}
               />
             </div>
             {publication.url ? (
@@ -186,6 +185,17 @@ function AutoTrackedPublicationCard({
             ) : null}
           </div>
         )}
+
+        {!isMissing ? (
+          <>
+            <PublicationSubscriberSection publication={publication} compact={compact} />
+            <PublicationMetricUpdateSection
+              publication={publication}
+              compact={compact}
+              onOpenHistory={openHistory}
+            />
+          </>
+        ) : null}
       </div>
 
       {!isMissing ? (

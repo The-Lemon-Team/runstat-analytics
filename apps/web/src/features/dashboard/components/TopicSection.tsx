@@ -78,7 +78,7 @@ export function TopicSection({
   onAddPublication: (topicId: string, stageId: string) => void
   onMetricsSaved?: (
     publicationId: string,
-    metrics: { likes: number; comments: number },
+    metrics: { views: number; likes: number; comments: number },
     historyEntry: import('@spt/shared').MetricHistoryEntryDto,
   ) => void
   onCreateStage?: (
