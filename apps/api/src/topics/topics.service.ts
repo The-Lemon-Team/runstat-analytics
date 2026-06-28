@@ -370,6 +370,7 @@ export class TopicsService {
       provider: publication.provider,
       channelName: publication.channelName,
       label: publication.label,
+      comment: publication.comment,
       postUrl: publication.postUrl,
       status: publication.status,
       publishedAt: publication.publishedAt?.toISOString() ?? null,

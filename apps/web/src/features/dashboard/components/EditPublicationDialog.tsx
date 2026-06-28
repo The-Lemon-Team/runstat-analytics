@@ -93,6 +93,7 @@ export function EditPublicationDialog({
 }) {
   const { oauthConnections, subscriberSources } = useDashboardShell()
   const [label, setLabel] = useState(publication.label)
+  const [comment, setComment] = useState(publication.comment ?? '')
   const [url, setUrl] = useState(publication.url)
   const [subscriberSourceId, setSubscriberSourceId] = useState<string | null>(
     publication.subscriberSourceId,
@@ -111,6 +112,7 @@ export function EditPublicationDialog({
   useEffect(() => {
     if (!open) return
     setLabel(publication.label)
+    setComment(publication.comment ?? '')
     setUrl(publication.url)
     setSubscriberSourceId(publication.subscriberSourceId)
     setLiveTracking(isLiveMetricTracking(publication.metricTrackingMode))
@@ -142,6 +144,7 @@ export function EditPublicationDialog({
     setError(null)
 
     const trimmedUrl = url.trim()
+    const trimmedComment = comment.trim()
     const nextMode = liveTracking
       ? MetricTrackingMode.AUTOMATIC
       : MetricTrackingMode.MANUAL
@@ -149,12 +152,14 @@ export function EditPublicationDialog({
       nextMode !== publication.metricTrackingMode
     const channelChanged =
       subscriberSourceId !== publication.subscriberSourceId
+    const commentChanged = trimmedComment !== (publication.comment ?? '')
 
     try {
       await updatePublication({
         publicationId: publication.id,
         label: label.trim(),
         postUrl: trimmedUrl || null,
+        comment: commentChanged ? trimmedComment || null : undefined,
         metricTrackingMode: modeChanged ? nextMode : undefined,
         subscriberSourceId: channelChanged ? subscriberSourceId : undefined,
       }).unwrap()
@@ -213,6 +218,19 @@ export function EditPublicationDialog({
                 onChange={(e) => setLabel(e.target.value)}
                 placeholder="например, VK Юрий"
                 disabled={isBusy}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-pub-comment">Комментарий</Label>
+              <textarea
+                id="edit-pub-comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Заметка к публикации"
+                rows={2}
+                disabled={isBusy}
+                className="flex min-h-[4.5rem] w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
 

@@ -32,6 +32,7 @@ export interface NewPublicationInput {
   channelName: string
   stageId: string
   url: string
+  comment?: string
   status: PublicationViewStatus
   metricTrackingMode?: MetricTrackingModeType
   subscriberSourceId?: string | null
@@ -64,6 +65,7 @@ export function AddPublicationDialog({
   const { oauthConnections, subscriberSources } = useDashboardShell()
   const [providerId, setProviderId] = useState('tg')
   const [label, setLabel] = useState('')
+  const [comment, setComment] = useState('')
   const [stageKey, setStageKey] = useState(defaultStageKey ?? '')
   const [url, setUrl] = useState('')
   const [subscriberSourceId, setSubscriberSourceId] = useState<string | null>(null)
@@ -78,6 +80,7 @@ export function AddPublicationDialog({
         : ''
       setProviderId('tg')
       setLabel('')
+      setComment('')
       setStageKey(defaultStageKey ?? firstKey)
       setUrl('')
       setFetchError(null)
@@ -156,6 +159,7 @@ export function AddPublicationDialog({
         channelName,
         stageId: selectedStage.stageId,
         url: trimmedUrl,
+        comment: comment.trim() || undefined,
         status: trimmedUrl ? 'published' : 'scheduled',
         metricTrackingMode,
         subscriberSourceId,
@@ -207,6 +211,18 @@ export function AddPublicationDialog({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="например, VK Юрий"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="pub-comment">Комментарий</Label>
+            <textarea
+              id="pub-comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Заметка к публикации — видна в сетке"
+              rows={2}
+              className="flex min-h-[4.5rem] w-full resize-y rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
 

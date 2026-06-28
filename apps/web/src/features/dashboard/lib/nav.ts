@@ -27,8 +27,49 @@ export const DASHBOARD_PATHS: Record<DashboardNavId, string> = {
   [DASHBOARD_NAV.settings]: '/settings',
 }
 
+export const VIEW_PATH_PREFIX = '/view'
+
+export const VIEW_ENABLED_PAGES = new Set<DashboardNavId>([
+  DASHBOARD_NAV.content,
+  DASHBOARD_NAV.topics,
+])
+
+export function isViewPath(pathname: string): boolean {
+  return (
+    pathname === VIEW_PATH_PREFIX ||
+    pathname.startsWith(`${VIEW_PATH_PREFIX}/`)
+  )
+}
+
+export function stripViewPrefix(pathname: string): string {
+  if (pathname === VIEW_PATH_PREFIX || pathname === `${VIEW_PATH_PREFIX}/`) {
+    return '/'
+  }
+
+  if (pathname.startsWith(`${VIEW_PATH_PREFIX}/`)) {
+    return pathname.slice(VIEW_PATH_PREFIX.length) || '/'
+  }
+
+  return pathname
+}
+
+export function toViewPath(path: string): string {
+  if (path === '/') return VIEW_PATH_PREFIX
+  return `${VIEW_PATH_PREFIX}${path}`
+}
+
+export function dashboardPath(
+  navId: DashboardNavId,
+  options?: { view?: boolean },
+): string {
+  const base = DASHBOARD_PATHS[navId]
+  return options?.view ? toViewPath(base) : base
+}
+
 export function navFromPath(pathname: string): DashboardNavId {
-  if (pathname === '/' || pathname === '') {
+  const path = stripViewPrefix(pathname)
+
+  if (path === '/' || path === '') {
     return DASHBOARD_NAV.home
   }
 
@@ -36,8 +77,8 @@ export function navFromPath(pathname: string): DashboardNavId {
     ([, a], [, b]) => b.length - a.length,
   )
 
-  for (const [nav, path] of sorted) {
-    if (path !== '/' && pathname.startsWith(path)) {
+  for (const [nav, dashboardPathValue] of sorted) {
+    if (dashboardPathValue !== '/' && path.startsWith(dashboardPathValue)) {
       return nav as DashboardNavId
     }
   }

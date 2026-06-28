@@ -117,6 +117,7 @@ export class PublicationsService {
           provider: dto.provider,
           channelName: dto.channelName.trim(),
           label: dto.label?.trim() || null,
+          comment: dto.comment?.trim() || null,
           postUrl,
           status,
           publishedAt:
@@ -171,6 +172,10 @@ export class PublicationsService {
         : publication.postUrl
     const label =
       dto.label !== undefined ? dto.label.trim() || null : publication.label
+    const comment =
+      dto.comment !== undefined
+        ? dto.comment?.trim() || null
+        : publication.comment
 
     const nextSubscriberSourceId =
       dto.subscriberSourceId !== undefined
@@ -271,6 +276,7 @@ export class PublicationsService {
 
       const data: {
         label?: string | null
+        comment?: string | null
         postUrl?: string | null
         metricTrackingMode?: MetricTrackingMode
         status?: PublicationStatus
@@ -280,6 +286,10 @@ export class PublicationsService {
 
       if (dto.label !== undefined) {
         data.label = label
+      }
+
+      if (dto.comment !== undefined) {
+        data.comment = comment
       }
 
       if (dto.postUrl !== undefined) {

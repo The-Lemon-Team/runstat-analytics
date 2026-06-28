@@ -5,6 +5,7 @@ import { DateRangePresets } from '@/features/calendar/components/DateRangePreset
 import {
   formatDateRangeLabel,
   startOfMonth,
+  type DateRangePreset,
   type DateRangeValue,
 } from '@/features/calendar/lib/calendar-utils'
 import { HelpTooltip } from '@/components/HelpTooltip'
@@ -17,6 +18,8 @@ type DateRangePickerProps = {
   onClear: () => void
   size?: 'sm' | 'default'
   showPresets?: boolean
+  presets?: DateRangePreset[]
+  showHelp?: boolean
 }
 
 export function DateRangePicker({
@@ -25,6 +28,8 @@ export function DateRangePicker({
   onClear,
   size = 'default',
   showPresets = false,
+  presets,
+  showHelp = true,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
   const [cursor, setCursor] = useState(() =>
@@ -68,11 +73,14 @@ export function DateRangePicker({
     >
       {showPresets ? (
         <>
-          <HelpTooltip text="Предвыбор: сегодня, текущая неделя (пн–сегодня) или месяц (1-е–сегодня)" />
+          {showHelp ? (
+            <HelpTooltip text="Предвыбор: сегодня, текущая неделя (пн–сегодня) или месяц (1-е–сегодня)" />
+          ) : null}
           <DateRangePresets
             value={value}
             onChange={handlePresetChange}
             size={size}
+            presets={presets}
           />
         </>
       ) : null}
@@ -111,6 +119,7 @@ export function DateRangePicker({
                 onChange={handlePresetChange}
                 size="sm"
                 className="w-full justify-between"
+                presets={presets}
               />
             </div>
           ) : null}

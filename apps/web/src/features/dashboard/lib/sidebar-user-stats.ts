@@ -77,7 +77,10 @@ export function computeSidebarUserStats(
 }
 
 function findSubscriberSource(
-  publication: PublicationDto,
+  publication: Pick<
+    PublicationDto,
+    'subscriberSourceId' | 'provider' | 'channelName'
+  >,
   sources: LiveSubscriberSource[],
 ): LiveSubscriberSource | null {
   if (publication.subscriberSourceId) {
@@ -99,6 +102,21 @@ function findSubscriberSource(
     source.handle.toLowerCase().includes(channel),
   )
   return byChannel ?? matches[0]!
+}
+
+export function getPublicationSubscribersAtPublish(
+  publication: Pick<
+    PublicationDto,
+    'subscriberSourceId' | 'publishedAt' | 'provider' | 'channelName'
+  >,
+  sources: LiveSubscriberSource[],
+): number | null {
+  if (!publication.publishedAt) return null
+
+  const source = findSubscriberSource(publication, sources)
+  if (!source) return null
+
+  return estimateSubscribersAtPublish(source, publication.publishedAt)?.atPublish ?? null
 }
 
 export function findLinkedSubscriberSource(

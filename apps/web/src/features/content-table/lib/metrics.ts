@@ -8,6 +8,10 @@ import {
   type TopicDto,
 } from '@spt/shared'
 
+import type { LiveSubscriberSource } from '@/lib/provider-connections'
+import { getPublicationSubscribersAtPublish } from '@/features/dashboard/lib/sidebar-user-stats'
+import { getPublicationDate } from '@/features/topics/lib/topic-filters'
+
 export type ContentRowKind = 'topic' | 'stage' | 'publication'
 
 export interface ContentTableRow {
@@ -23,6 +27,9 @@ export interface ContentTableRow {
   provider?: PublicationDto['provider']
   channelName?: string
   metrics: Metrics
+  comment?: string | null
+  publicationDate?: Date | null
+  subscribersAtPublish?: number | null
   publishedCount?: number
   totalCount?: number
   childCount?: number
@@ -111,7 +118,10 @@ export function countPublications(topic: TopicDto): {
   return { published, total }
 }
 
-export function flattenTopicsToRows(topics: TopicDto[]): ContentTableRow[] {
+export function flattenTopicsToRows(
+  topics: TopicDto[],
+  subscriberSources?: LiveSubscriberSource[],
+): ContentTableRow[] {
   const rows: ContentTableRow[] = []
 
   for (const topic of topics) {
@@ -154,6 +164,11 @@ export function flattenTopicsToRows(topics: TopicDto[]): ContentTableRow[] {
           provider: publication.provider,
           status: publication.status,
           metrics: aggregatePublication(publication),
+          comment: publication.comment,
+          publicationDate: getPublicationDate(publication),
+          subscribersAtPublish: subscriberSources
+            ? getPublicationSubscribersAtPublish(publication, subscriberSources)
+            : undefined,
         })
       }
     }

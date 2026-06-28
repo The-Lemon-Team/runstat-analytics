@@ -2,8 +2,12 @@ import type { MetricHistoryEntryDto } from '@spt/shared'
 import { MetricTrackingMode, PublicationStatus } from '@spt/shared'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { LayoutGrid, Loader2, Plus, Search, Table as TableIcon } from 'lucide-react'
+import { Download, LayoutGrid, Loader2, Plus, Search, Table as TableIcon } from 'lucide-react'
 import { ContentMetricsTable } from '@/features/content-table/components/ContentMetricsTable'
+import { exportTopicsStatsToExcel } from '@/features/export/export-topics-stats'
+import { PresentationModeToggle } from '@/features/presentation/PresentationModeToggle'
+import { ViewModeDateRangePicker } from '@/features/presentation/ViewModeDateRangePicker'
+import { usePresentationMode } from '@/features/presentation/PresentationModeContext'
 import { useDashboardShell } from '@/features/dashboard/DashboardShellContext'
 import { useDashboardTopicsContext } from '@/features/dashboard/DashboardTopicsProvider'
 import { DashboardGlobalStats } from '@/features/dashboard/components/DashboardGlobalStats'
@@ -24,6 +28,7 @@ import { FirstTopicEmptyState } from '@/features/topics/components/FirstTopicEmp
 import { TopicsSection } from '@/features/topics/components/TopicsSection'
 import {
   filterTopics,
+  flattenFilteredTopicsPublications,
   formatTopicsFilterPeriod,
 } from '@/features/topics/lib/topic-filters'
 import { EMPTY_DATE_RANGE } from '@/features/calendar/lib/calendar-utils'
@@ -33,11 +38,12 @@ import { getProviderUi } from '@/lib/providers'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
-/** Временно отключено — вернуть true, когда таблица будет готова */
-const TABLE_VIEW_ENABLED = false
+/** Табличный вид и режим просмотра для презентаций на встречах */
+const TABLE_VIEW_ENABLED = true
 
 export function ContentGridPage() {
   const { t } = useTranslation()
+  const { isPresentationMode } = usePresentationMode()
   const {
     subscriberSources,
     connectingId,
@@ -92,7 +98,26 @@ export function ContentGridPage() {
     return topics.filter((topic) => matchedIds.has(topic.id))
   }, [topics, sourceTopics, query, dateRange])
 
+  const filteredSourceTopics = useMemo(
+    () => filterTopics(sourceTopics, { query, dateRange }),
+    [sourceTopics, query, dateRange],
+  )
+
+  const exportRows = useMemo(
+    () =>
+      flattenFilteredTopicsPublications(filteredSourceTopics, { dateRange }, subscriberSources),
+    [filteredSourceTopics, dateRange, subscriberSources],
+  )
+
   const periodLabel = formatTopicsFilterPeriod(dateRange)
+
+  const effectiveView = isPresentationMode ? 'table' : view
+
+  const handleExport = () => {
+    void exportTopicsStatsToExcel(exportRows, {
+      periodLabel: dateRange.enabled ? periodLabel : undefined,
+    })
+  }
 
   function openDialogForStage(topicId: string, stageId: string) {
     setDefaultStageKey(`${topicId}::${stageId}`)
@@ -116,6 +141,7 @@ export function ContentGridPage() {
       provider: provider.provider,
       channelName: input.channelName,
       label: input.label,
+      comment: input.comment,
       postUrl: trimmedUrl || undefined,
       status:
         input.status === 'published'
@@ -284,16 +310,42 @@ export function ContentGridPage() {
     <>
       <header className="sticky top-0 z-20 flex flex-col gap-4 border-b border-border bg-background/80 px-4 py-4 backdrop-blur-xl md:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
+          <h1 className={isPresentationMode ? 'text-2xl font-semibold tracking-tight' : 'text-xl font-semibold tracking-tight'}>
             {t(pageTitleKey(DASHBOARD_NAV.content))}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {t(pageSubtitleKey(DASHBOARD_NAV.content))}
-          </p>
+          {!isPresentationMode ? (
+            <p className="text-sm text-muted-foreground">
+              {t(pageSubtitleKey(DASHBOARD_NAV.content))}
+            </p>
+          ) : dateRange.enabled ? (
+            <p className="text-sm text-muted-foreground">Период: {periodLabel}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {TABLE_VIEW_ENABLED && hasTopics ? (
+          <PresentationModeToggle />
+
+          {isPresentationMode && hasTopics ? (
+            <ViewModeDateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              onClear={() => setDateRange(EMPTY_DATE_RANGE)}
+            />
+          ) : null}
+
+          {isPresentationMode && hasTopics ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exportRows.length === 0}
+              onClick={handleExport}
+            >
+              <Download className="size-4" />
+              <span className="hidden md:inline">Excel</span>
+            </Button>
+          ) : null}
+
+          {TABLE_VIEW_ENABLED && hasTopics && !isPresentationMode ? (
             <div className="flex rounded-lg border border-border p-0.5">
               <Button
                 size="sm"
@@ -316,21 +368,25 @@ export function ContentGridPage() {
 
           {hasTopics ? (
             <>
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  placeholder="Поиск по темам…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </div>
-              <Button onClick={openDialogGlobal}>
-                <Plus className="size-4" />
-                <span className="hidden sm:inline">
-                  {t('dashboard.addPublication')}
-                </span>
-              </Button>
+              {!isPresentationMode ? (
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Поиск по темам…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </div>
+              ) : null}
+              {!isPresentationMode ? (
+                <Button onClick={openDialogGlobal}>
+                  <Plus className="size-4" />
+                  <span className="hidden sm:inline">
+                    {t('dashboard.addPublication')}
+                  </span>
+                </Button>
+              ) : null}
             </>
           ) : null}
         </div>
@@ -365,25 +421,39 @@ export function ContentGridPage() {
           </>
         ) : (
           <>
-            <LiveSubscribers
-              sources={subscriberSources}
-              connectingId={connectingId}
-              onConnectOAuth={onConnectOAuth}
-              onYouTubeChannelAdded={onYouTubeChannelAdded}
-            />
+            {!isPresentationMode ? (
+              <>
+                <LiveSubscribers
+                  sources={subscriberSources}
+                  connectingId={connectingId}
+                  onConnectOAuth={onConnectOAuth}
+                  onYouTubeChannelAdded={onYouTubeChannelAdded}
+                />
 
-            <DashboardGlobalStats
-              views={totals.views}
-              comments={totals.comments}
-              likes={totals.likes}
-              activeTopics={sourceTopics.length}
-            />
+                <DashboardGlobalStats
+                  views={totals.views}
+                  comments={totals.comments}
+                  likes={totals.likes}
+                  activeTopics={sourceTopics.length}
+                />
+              </>
+            ) : null}
 
-            {TABLE_VIEW_ENABLED && view === 'table' ? (
-              <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            {TABLE_VIEW_ENABLED && effectiveView === 'table' ? (
+              <section
+                className={
+                  isPresentationMode
+                    ? 'overflow-hidden'
+                    : 'overflow-hidden rounded-xl border border-border bg-card shadow-sm'
+                }
+              >
                 <ContentMetricsTable
-                  topics={sourceTopics}
-                  onAddPublication={openDialogForStage}
+                  topics={filteredSourceTopics}
+                  subscriberSources={subscriberSources}
+                  presentation={isPresentationMode}
+                  onAddPublication={
+                    isPresentationMode ? undefined : openDialogForStage
+                  }
                 />
               </section>
             ) : (
@@ -392,6 +462,9 @@ export function ContentGridPage() {
                 onDateRangeChange={setDateRange}
                 onClearDateRange={() => setDateRange(EMPTY_DATE_RANGE)}
                 onAddTopic={() => setTopicDialogOpen(true)}
+                onExport={handleExport}
+                exportDisabled={exportRows.length === 0}
+                presentation={isPresentationMode}
                 empty={
                   filteredTopics.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">

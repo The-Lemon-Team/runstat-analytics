@@ -6,6 +6,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import type { TopicDto } from '@spt/shared'
+import type { LiveSubscriberSource } from '@/lib/provider-connections'
 import {
   type ContentTableRow,
   flattenTopicsToRows,
@@ -44,7 +45,20 @@ function buildVisibleRows(
   return visible
 }
 
-export function useContentTable(topics: TopicDto[]) {
+export function useContentTable(
+  topics: TopicDto[],
+  options?: {
+    subscriberSources?: LiveSubscriberSource[]
+    showSubscribersColumn?: boolean
+    showCommentColumn?: boolean
+    showDateColumn?: boolean
+  },
+) {
+  const subscriberSources = options?.subscriberSources
+  const showSubscribersColumn = options?.showSubscribersColumn ?? false
+  const showCommentColumn = options?.showCommentColumn ?? false
+  const showDateColumn = options?.showDateColumn ?? false
+
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(
     () => new Set(topics.map((t) => t.id)),
   )
@@ -55,7 +69,10 @@ export function useContentTable(topics: TopicDto[]) {
       ),
   )
 
-  const allRows = useMemo(() => flattenTopicsToRows(topics), [topics])
+  const allRows = useMemo(
+    () => flattenTopicsToRows(topics, subscriberSources),
+    [topics, subscriberSources],
+  )
 
   const visibleRows = useMemo(
     () => buildVisibleRows(allRows, expandedTopics, expandedStages),
@@ -73,6 +90,30 @@ export function useContentTable(topics: TopicDto[]) {
         id: 'status',
         header: 'Статус',
       },
+      ...(showDateColumn
+        ? [
+            {
+              id: 'date',
+              header: 'Дата',
+            } satisfies ColumnDef<ContentTableRow>,
+          ]
+        : []),
+      ...(showSubscribersColumn
+        ? [
+            {
+              id: 'subscribers',
+              header: 'Подписчики до',
+            } satisfies ColumnDef<ContentTableRow>,
+          ]
+        : []),
+      ...(showCommentColumn
+        ? [
+            {
+              id: 'comment',
+              header: 'Комментарий',
+            } satisfies ColumnDef<ContentTableRow>,
+          ]
+        : []),
       {
         id: 'views',
         header: 'Просмотры',
@@ -93,7 +134,7 @@ export function useContentTable(topics: TopicDto[]) {
         header: 'ER',
       },
     ],
-    [],
+    [showSubscribersColumn, showCommentColumn, showDateColumn],
   )
 
   const table = useReactTable({
@@ -134,6 +175,9 @@ export function useContentTable(topics: TopicDto[]) {
   return {
     table,
     visibleRows,
+    showSubscribersColumn,
+    showCommentColumn,
+    showDateColumn,
     toggleTopic,
     toggleStage,
     isTopicExpanded,

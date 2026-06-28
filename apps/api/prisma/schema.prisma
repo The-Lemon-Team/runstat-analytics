@@ -190,6 +190,7 @@ model Publication {
   provider            Provider
   channelName         String
   label               String?
+  comment             String?
   postUrl             String?
   status              PublicationStatus   @default(PLANNED)
   publishedAt         DateTime?

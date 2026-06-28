@@ -46,6 +46,10 @@ export class CreatePublicationDto {
 
   @IsOptional()
   @IsString()
+  comment?: string
+
+  @IsOptional()
+  @IsString()
   postUrl?: string
 
   @IsOptional()

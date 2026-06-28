@@ -10,6 +10,8 @@ import {
   useCreateSubscriberSourceMutation,
 } from '@/app/api/baseApi'
 import { DashboardShellProvider } from '@/features/dashboard/DashboardShellContext'
+import { PresentationModeProvider } from '@/features/presentation/PresentationModeContext'
+import { usePresentationMode } from '@/features/presentation/PresentationModeContext'
 import { DashboardTopicsProvider } from '@/features/dashboard/DashboardTopicsProvider'
 import { useDashboardTopicsContext } from '@/features/dashboard/DashboardTopicsProvider'
 import { DashboardSidebar } from '@/features/dashboard/components/DashboardSidebar'
@@ -216,6 +218,7 @@ export function DashboardLayout() {
 
   return (
     <DashboardTopicsProvider>
+      <PresentationModeProvider>
       <DashboardLayoutInner
         activeNav={activeNav}
         subscriberSources={subscriberSources}
@@ -227,6 +230,7 @@ export function DashboardLayout() {
         onConnectOAuth={connectProvider}
         onYouTubeChannelAdded={handleYouTubeChannelAdded}
       />
+      </PresentationModeProvider>
     </DashboardTopicsProvider>
   )
 }
@@ -253,6 +257,7 @@ function DashboardLayoutInner({
   onYouTubeChannelAdded: () => void
 }) {
   const { sourceTopics } = useDashboardTopicsContext()
+  const { isPresentationMode } = usePresentationMode()
 
   const sidebarUserStats = useMemo(
     () => computeSidebarUserStats(sourceTopics, subscriberSources),
@@ -292,7 +297,9 @@ function DashboardLayoutInner({
   return (
     <DashboardShellProvider value={shellValue}>
       <div className="flex min-h-svh bg-background">
-        <DashboardSidebar active={activeNav} userStats={sidebarUserStats} />
+        {!isPresentationMode ? (
+          <DashboardSidebar active={activeNav} userStats={sidebarUserStats} />
+        ) : null}
         <DashboardChrome />
         {connectingId ? (
           <OAuthConnectingOverlay providerId={connectingId} />

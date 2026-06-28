@@ -147,6 +147,17 @@ export function OfflinePublicationCard({
               <p className="truncate text-[10px] text-muted-foreground">
                 {provider.name}
               </p>
+              {publication.comment ? (
+                <p
+                  className={cn(
+                    'mt-0.5 line-clamp-2 text-muted-foreground',
+                    compact ? 'text-[10px]' : 'text-[11px]',
+                  )}
+                  title={publication.comment}
+                >
+                  {publication.comment}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-1">

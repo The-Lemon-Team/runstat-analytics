@@ -8,13 +8,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-const PRESETS: DateRangePreset[] = ['day', 'week', 'month']
+const DEFAULT_PRESETS: DateRangePreset[] = ['day', 'week', 'month']
 
 type DateRangePresetsProps = {
   value: DateRangeValue
   onChange: (value: DateRangeValue) => void
   size?: 'sm' | 'default'
   className?: string
+  presets?: DateRangePreset[]
 }
 
 export function DateRangePresets({
@@ -22,6 +23,7 @@ export function DateRangePresets({
   onChange,
   size = 'sm',
   className,
+  presets = DEFAULT_PRESETS,
 }: DateRangePresetsProps) {
   return (
     <div
@@ -32,7 +34,7 @@ export function DateRangePresets({
       role="group"
       aria-label="Предвыбор периода"
     >
-      {PRESETS.map((preset) => {
+      {presets.map((preset) => {
         const isActive = matchesDateRangePreset(value, preset)
         return (
           <Button

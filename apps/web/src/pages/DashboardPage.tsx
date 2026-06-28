@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { DashboardLayout } from '@/features/dashboard/DashboardLayout'
 import { ContentGridRoute } from '@/features/dashboard/pages/ContentGridRoute'
 import { HomeRoute } from '@/features/dashboard/pages/HomeRoute'
@@ -20,6 +20,11 @@ export function DashboardPage() {
         <Route index element={<HomeRoute />} />
         <Route path="content" element={<ContentGridRoute />} />
         <Route path="topics" element={<TopicsPage />} />
+        <Route path="view">
+          <Route index element={<Navigate to="content" replace />} />
+          <Route path="content" element={<ContentGridRoute />} />
+          <Route path="topics" element={<TopicsPage />} />
+        </Route>
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="settings" element={<SettingsPage />} />
         {UNDER_DEVELOPMENT_PAGES.map((nav) => (

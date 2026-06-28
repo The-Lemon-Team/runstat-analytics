@@ -63,6 +63,7 @@ export interface PublicationView {
   id: string
   providerId: string
   label: string
+  comment: string | null
   stageId: string
   url: string
   status: PublicationViewStatus
@@ -129,6 +130,7 @@ function toPublicationView(pub: PublicationDto, stageId: string): PublicationVie
     id: pub.id,
     providerId: providerIdFromEnum(pub.provider),
     label: pub.label ?? pub.channelName,
+    comment: pub.comment ?? null,
     stageId,
     url: pub.postUrl ?? '',
     status,

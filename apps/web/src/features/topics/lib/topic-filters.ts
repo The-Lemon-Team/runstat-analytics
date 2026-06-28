@@ -1,11 +1,13 @@
 import type { Metrics, Provider, PublicationDto, TopicDto } from '@spt/shared'
 import { PublicationStatus } from '@spt/shared'
 import { aggregatePublication } from '@/features/content-table/lib/metrics'
+import { getPublicationSubscribersAtPublish } from '@/features/dashboard/lib/sidebar-user-stats'
 import {
   formatDateRangeLabel,
   isDateInRange,
   type DateRangeValue,
 } from '@/features/calendar/lib/calendar-utils'
+import type { LiveSubscriberSource } from '@/lib/provider-connections'
 
 export { MONTH_LABELS } from '@/features/calendar/lib/calendar-utils'
 
@@ -23,11 +25,19 @@ export type TopicPublicationRow = {
   provider: Provider
   status: PublicationStatus
   postUrl: string | null
+  comment: string | null
   date: Date | null
+  publishedAt: string | null
+  channelName: string
+  subscriberSourceId: string | null
+  subscribersAtPublish: number | null
   metrics: Metrics
 }
 
-export function flattenTopicPublications(topic: TopicDto): TopicPublicationRow[] {
+export function flattenTopicPublications(
+  topic: TopicDto,
+  subscriberSources?: LiveSubscriberSource[],
+): TopicPublicationRow[] {
   const rows: TopicPublicationRow[] = []
 
   for (const stage of topic.stages) {
@@ -41,7 +51,14 @@ export function flattenTopicPublications(topic: TopicDto): TopicPublicationRow[]
         provider: pub.provider,
         status: pub.status,
         postUrl: pub.postUrl,
+        comment: pub.comment,
         date: getPublicationDate(pub),
+        publishedAt: pub.publishedAt,
+        channelName: pub.channelName,
+        subscriberSourceId: pub.subscriberSourceId,
+        subscribersAtPublish: subscriberSources
+          ? getPublicationSubscribersAtPublish(pub, subscriberSources)
+          : null,
         metrics: aggregatePublication(pub),
       })
     }
@@ -105,8 +122,9 @@ export function filterTopics(
 export function filterTopicPublications(
   topic: TopicDto,
   { dateRange }: Pick<TopicsFilterOptions, 'dateRange'>,
+  subscriberSources?: LiveSubscriberSource[],
 ): TopicPublicationRow[] {
-  const rows = flattenTopicPublications(topic)
+  const rows = flattenTopicPublications(topic, subscriberSources)
 
   if (!dateRange.enabled) return rows
 
@@ -116,6 +134,9 @@ export function filterTopicPublications(
 export function flattenFilteredTopicsPublications(
   topics: TopicDto[],
   filters: Pick<TopicsFilterOptions, 'dateRange'>,
+  subscriberSources?: LiveSubscriberSource[],
 ): TopicPublicationRow[] {
-  return topics.flatMap((topic) => filterTopicPublications(topic, filters))
+  return topics.flatMap((topic) =>
+    filterTopicPublications(topic, filters, subscriberSources),
+  )
 }

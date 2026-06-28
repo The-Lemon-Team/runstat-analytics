@@ -11,6 +11,10 @@ export class UpdatePublicationDto {
   postUrl?: string | null
 
   @IsOptional()
+  @IsString()
+  comment?: string | null
+
+  @IsOptional()
   @IsEnum(MetricTrackingMode)
   metricTrackingMode?: MetricTrackingMode
 

@@ -114,6 +114,7 @@ export interface UpdateMetricTrackingModeRequest {
 export interface UpdatePublicationRequest {
   label?: string
   postUrl?: string | null
+  comment?: string | null
   metricTrackingMode?: MetricTrackingMode
   subscriberSourceId?: string | null
 }
@@ -123,6 +124,7 @@ export interface PublicationDto {
   provider: Provider
   channelName: string
   label: string | null
+  comment: string | null
   postUrl: string | null
   status: PublicationStatus
   publishedAt: string | null
@@ -246,6 +248,7 @@ export interface CreatePublicationRequest {
   provider: Provider
   channelName: string
   label?: string
+  comment?: string
   postUrl?: string
   status?: PublicationStatus
   metricTrackingMode?: MetricTrackingMode
